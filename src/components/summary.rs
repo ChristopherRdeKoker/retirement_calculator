@@ -19,7 +19,7 @@ fn affordable_hint(outcome: &Outcome) -> String {
 }
 
 fn verdict(outcome: &Outcome) -> AnyView {
-    let inputs = outcome.inputs;
+    let inputs = &outcome.inputs;
     if outcome.projection.sustainable {
         return view! {
             <p class="verdict verdict-good">
@@ -74,7 +74,7 @@ fn issue_list(issues: Vec<Issue>) -> AnyView {
 
 fn projection_summary(outcome: Outcome) -> AnyView {
     let projection = &outcome.projection;
-    let inputs = outcome.inputs;
+    let inputs = &outcome.inputs;
     view! {
         <section class="card summary" aria-labelledby="summary-title">
             <p class="eyebrow">"Your projection"</p>

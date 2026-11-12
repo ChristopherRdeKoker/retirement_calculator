@@ -5,7 +5,7 @@ use crate::scenarios::Scenario;
 use leptos::prelude::*;
 
 fn detail(item: &ScenarioOutcome) -> String {
-    let inputs = item.scenario.inputs;
+    let inputs = &item.scenario.inputs;
     item.outcome
         .as_ref()
         .map(|outcome| {

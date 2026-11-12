@@ -29,7 +29,7 @@ pub fn ScenarioPanel(
             .get()
             .into_iter()
             .map(|scenario| ScenarioOutcome {
-                outcome: Outcome::new(scenario.inputs),
+                outcome: Outcome::new(scenario.inputs.clone()),
                 scenario,
             })
             .collect::<Vec<_>>()

@@ -12,6 +12,7 @@ pub fn flat() -> Inputs {
         return_post: 0.0,
         inflation: 0.0,
         desired_income: 1_000.0,
+        deposits: Vec::new(),
     }
 }
 

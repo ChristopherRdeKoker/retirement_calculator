@@ -1,4 +1,4 @@
-use crate::calc::{validate, Field, Inputs, Issue};
+use crate::calc::{validate, Field, Inputs, Issue, Subject};
 use crate::format::group_thousands;
 use leptos::prelude::*;
 
@@ -154,7 +154,10 @@ fn unreadable(field: Field) -> Issue {
         FieldKind::Age => format!("{}: enter a whole number of years.", def.label),
         _ => format!("{}: enter a number.", def.label),
     };
-    Issue { field, message }
+    Issue {
+        subject: Subject::Field(field),
+        message,
+    }
 }
 
 pub fn read_form(text_of: impl Fn(Field) -> String) -> Result<Inputs, Vec<Issue>> {
@@ -305,6 +308,7 @@ mod tests {
             return_post: -2.0,
             inflation: 5.5,
             desired_income: 30_000.0,
+            deposits: Vec::new(),
         };
         assert_eq!(read_form(texts(&inputs)), Ok(inputs));
         assert_eq!(read_form(texts(&Inputs::default())), Ok(Inputs::default()));
@@ -322,11 +326,11 @@ mod tests {
             read_form(text_of),
             Err(vec![
                 Issue {
-                    field: Field::CurrentAge,
+                    subject: Subject::Field(Field::CurrentAge),
                     message: "Current age: enter a whole number of years.".to_string(),
                 },
                 Issue {
-                    field: Field::Savings,
+                    subject: Subject::Field(Field::Savings),
                     message: "Current savings: enter a number.".to_string(),
                 },
             ])
@@ -342,6 +346,6 @@ mod tests {
         };
         let issues = read_form(text_of).unwrap_err();
         assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].field, Field::RetireAge);
+        assert_eq!(issues[0].subject, Subject::Field(Field::RetireAge));
     }
 }

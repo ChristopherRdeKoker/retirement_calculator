@@ -61,7 +61,7 @@ fn simulate(inputs: &Inputs, income_today: f64, record: bool) -> Simulation {
     let monthly_return_post = monthly_rate(inputs.return_post);
     let contribution_growth = 1.0 + inputs.contribution_increase / 100.0;
     let yearly_inflation = 1.0 + inputs.inflation / 100.0;
-    let saving_years = inputs.retire_age - inputs.current_age;
+    let saving_years = inputs.saving_years();
     let total_years = MAX_AGE - inputs.current_age;
 
     let mut balance = inputs.savings;
@@ -74,6 +74,9 @@ fn simulate(inputs: &Inputs, income_today: f64, record: bool) -> Simulation {
 
     for year in 0..=total_years {
         let age = inputs.current_age + year;
+        if year < saving_years {
+            balance += inputs.deposits_in_year(year + 1);
+        }
         if record {
             points.push(Point {
                 age,
@@ -323,7 +326,7 @@ mod tests {
         let mut inputs = flat();
         inputs.retire_age = 30;
         let issues = project(&inputs).unwrap_err();
-        assert!(issues.iter().any(|issue| issue.field == Field::RetireAge
+        assert!(issues.iter().any(|issue| issue.is_for(Field::RetireAge)
             && issue.message == "Retirement age must be later than your current age."));
         inputs.retire_age = 25;
         assert!(project(&inputs).is_err());
@@ -342,6 +345,7 @@ mod tests {
             return_post: 50.0,
             inflation: 50.0,
             desired_income: MAX_MONEY,
+            deposits: Vec::new(),
         };
         let projection = project(&inputs).unwrap();
         assert!(projection.pot_nominal.is_finite() && projection.pot_nominal > 1e20);
@@ -563,6 +567,7 @@ mod tests {
                                 return_post,
                                 inflation,
                                 desired_income,
+                                deposits: Vec::new(),
                             });
                         }
                     }
@@ -575,7 +580,7 @@ mod tests {
     #[test]
     fn higher_return_after_retirement_never_runs_out_sooner() {
         for base in grid() {
-            let mut better = base;
+            let mut better = base.clone();
             better.return_post += 2.0;
             let lower = project(&base).unwrap();
             let higher = project(&better).unwrap();
@@ -590,7 +595,7 @@ mod tests {
     #[test]
     fn higher_return_before_retirement_never_shrinks_the_pot() {
         for base in grid() {
-            let mut better = base;
+            let mut better = base.clone();
             better.return_pre += 2.0;
             let lower = project(&base).unwrap();
             let higher = project(&better).unwrap();
@@ -605,7 +610,7 @@ mod tests {
     #[test]
     fn more_savings_never_runs_out_sooner() {
         for base in grid() {
-            let mut richer = base;
+            let mut richer = base.clone();
             richer.savings += 50_000.0;
             let poorer = project(&base).unwrap();
             let wealthier = project(&richer).unwrap();
@@ -620,7 +625,7 @@ mod tests {
     #[test]
     fn more_income_never_lasts_longer() {
         for base in grid() {
-            let mut hungrier = base;
+            let mut hungrier = base.clone();
             hungrier.desired_income += 1_000.0;
             let modest = project(&base).unwrap();
             let lavish = project(&hungrier).unwrap();
@@ -635,10 +640,10 @@ mod tests {
     fn sustainable_income_is_the_boundary_on_the_grid() {
         for base in grid().into_iter().step_by(7) {
             let income = sustainable_income(&base).unwrap();
-            let mut at = base;
+            let mut at = base.clone();
             at.desired_income = income;
             assert!(project(&at).unwrap().sustainable, "{base:?}");
-            let mut above = base;
+            let mut above = base.clone();
             above.desired_income = income * 1.001 + 1.0;
             assert!(!project(&above).unwrap().sustainable, "{base:?}");
         }

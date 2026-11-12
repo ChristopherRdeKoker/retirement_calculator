@@ -69,7 +69,7 @@ pub fn NumberField(
         parsed
             .get()
             .err()
-            .and_then(|issues| issues.into_iter().find(|issue| issue.field == field))
+            .and_then(|issues| issues.into_iter().find(|issue| issue.is_for(field)))
             .map(|issue| issue.message)
     };
     let described_by = move || {

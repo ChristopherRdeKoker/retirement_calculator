@@ -11,6 +11,12 @@ const MIN_RETURN: f64 = -20.0;
 const MIN_INFLATION: f64 = -10.0;
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Deposit {
+    pub year: u32,
+    pub amount: f64,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct Inputs {
     pub current_age: u32,
     pub retire_age: u32,
@@ -22,6 +28,8 @@ pub struct Inputs {
     pub return_post: f64,
     pub inflation: f64,
     pub desired_income: f64,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub deposits: Vec<Deposit>,
 }
 
 impl Default for Inputs {
@@ -37,6 +45,7 @@ impl Default for Inputs {
             return_post: 7.0,
             inflation: 5.0,
             desired_income: 25_000.0,
+            deposits: Vec::new(),
         }
     }
 }
@@ -108,16 +117,44 @@ impl Inputs {
     pub fn display_end_age(&self) -> u32 {
         (self.life_expectancy + 5).min(MAX_AGE)
     }
+
+    pub fn saving_years(&self) -> u32 {
+        self.retire_age.saturating_sub(self.current_age)
+    }
+
+    pub fn deposits_in_year(&self, year: u32) -> f64 {
+        self.deposits
+            .iter()
+            .filter(|deposit| deposit.year == year)
+            .map(|deposit| deposit.amount)
+            .sum()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Subject {
+    Field(Field),
+    DepositYear(usize),
+    DepositAmount(usize),
 }
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Issue {
-    pub field: Field,
+    pub subject: Subject,
     pub message: String,
 }
 
+impl Issue {
+    pub fn is_for(&self, field: Field) -> bool {
+        self.subject == Subject::Field(field)
+    }
+}
+
 fn issue(field: Field, message: String) -> Issue {
-    Issue { field, message }
+    Issue {
+        subject: Subject::Field(field),
+        message,
+    }
 }
 
 fn check_rate(issues: &mut Vec<Issue>, field: Field, value: f64, label: &str, min: f64) {
@@ -166,6 +203,39 @@ fn check_ages(issues: &mut Vec<Issue>, inputs: &Inputs) {
             Field::LifeExpectancy,
             format!("Life expectancy can be at most {MAX_AGE}."),
         ));
+    }
+}
+
+fn check_deposits(issues: &mut Vec<Issue>, inputs: &Inputs) {
+    let are_ages_valid = inputs.retire_age > inputs.current_age;
+    let last_year = inputs.saving_years();
+    for (row, deposit) in inputs.deposits.iter().enumerate() {
+        let number = row + 1;
+        if deposit.year < 1 || (are_ages_valid && deposit.year > last_year) {
+            let message = if are_ages_valid {
+                format!("Deposit {number}: the year must be between 1 and {last_year}, before you retire.")
+            } else {
+                format!("Deposit {number}: the year must be 1 or later.")
+            };
+            issues.push(Issue {
+                subject: Subject::DepositYear(row),
+                message,
+            });
+        }
+        let amount_problem = if !deposit.amount.is_finite() || deposit.amount <= 0.0 {
+            Some("must be more than R 0".to_string())
+        } else if deposit.amount > MAX_MONEY {
+            let limit = group_thousands(&format!("{MAX_MONEY:.0}"), ' ');
+            Some(format!("must be at most R {limit}"))
+        } else {
+            None
+        };
+        if let Some(problem) = amount_problem {
+            issues.push(Issue {
+                subject: Subject::DepositAmount(row),
+                message: format!("Deposit {number}: the amount {problem}."),
+            });
+        }
     }
 }
 
@@ -218,6 +288,7 @@ pub fn validate(inputs: &Inputs) -> Vec<Issue> {
         "Inflation",
         MIN_INFLATION,
     );
+    check_deposits(&mut issues, inputs);
     issues
 }
 
@@ -252,11 +323,11 @@ mod tests {
         inputs.life_expectancy = 40;
         assert!(validate(&inputs)
             .iter()
-            .any(|issue| issue.field == Field::LifeExpectancy));
+            .any(|issue| issue.is_for(Field::LifeExpectancy)));
         inputs.life_expectancy = 101;
         assert!(validate(&inputs)
             .iter()
-            .any(|issue| issue.field == Field::LifeExpectancy));
+            .any(|issue| issue.is_for(Field::LifeExpectancy)));
     }
 
     #[test]
@@ -266,14 +337,14 @@ mod tests {
         inputs.return_pre = f64::NAN;
         inputs.inflation = 80.0;
         inputs.monthly_contribution = f64::INFINITY;
-        let fields: Vec<Field> = validate(&inputs)
+        let fields: Vec<Subject> = validate(&inputs)
             .into_iter()
-            .map(|issue| issue.field)
+            .map(|issue| issue.subject)
             .collect();
-        assert!(fields.contains(&Field::Savings));
-        assert!(fields.contains(&Field::ReturnPre));
-        assert!(fields.contains(&Field::Inflation));
-        assert!(fields.contains(&Field::MonthlyContribution));
+        assert!(fields.contains(&Subject::Field(Field::Savings)));
+        assert!(fields.contains(&Subject::Field(Field::ReturnPre)));
+        assert!(fields.contains(&Subject::Field(Field::Inflation)));
+        assert!(fields.contains(&Subject::Field(Field::MonthlyContribution)));
     }
 
     #[test]
