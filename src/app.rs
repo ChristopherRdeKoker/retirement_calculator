@@ -1,182 +1,9 @@
-use crate::calc::{project, sustainable_income, validate, Field, Inputs, Issue, Projection};
+use crate::calc::{project, sustainable_income, Field, Inputs, Projection};
 use crate::chart::{Chart, ChartData};
-use crate::format::{format_compact, format_rand, group_thousands};
+use crate::form::{field_def, group_digits, parse, FieldKind, FormText, FIELD_GROUPS};
+use crate::format::{format_compact, format_rand};
 use crate::store::{self, Loaded, Scenario, MAX_NAME, MAX_SCENARIOS};
 use leptos::prelude::*;
-
-#[derive(Clone, Copy, PartialEq)]
-enum Kind {
-    Age,
-    Money,
-    Percent,
-}
-
-struct Def {
-    field: Field,
-    id: &'static str,
-    label: &'static str,
-    hint: &'static str,
-    kind: Kind,
-}
-
-const DEFS: [Def; 10] = [
-    Def {
-        field: Field::CurrentAge,
-        id: "current-age",
-        label: "Current age",
-        hint: "",
-        kind: Kind::Age,
-    },
-    Def {
-        field: Field::RetireAge,
-        id: "retire-age",
-        label: "Retirement age",
-        hint: "",
-        kind: Kind::Age,
-    },
-    Def {
-        field: Field::LifeExpectancy,
-        id: "life-expectancy",
-        label: "Plan until age",
-        hint: "Life expectancy, up to 100",
-        kind: Kind::Age,
-    },
-    Def {
-        field: Field::Savings,
-        id: "savings",
-        label: "Current savings",
-        hint: "Retirement annuity, pension or provident fund",
-        kind: Kind::Money,
-    },
-    Def {
-        field: Field::MonthlyContribution,
-        id: "contribution",
-        label: "Monthly contribution",
-        hint: "",
-        kind: Kind::Money,
-    },
-    Def {
-        field: Field::ContributionIncrease,
-        id: "increase",
-        label: "Yearly contribution increase",
-        hint: "In line with salary increases",
-        kind: Kind::Percent,
-    },
-    Def {
-        field: Field::ReturnPre,
-        id: "return-pre",
-        label: "Return before retirement",
-        hint: "Per year, before inflation",
-        kind: Kind::Percent,
-    },
-    Def {
-        field: Field::ReturnPost,
-        id: "return-post",
-        label: "Return after retirement",
-        hint: "Usually lower: a more cautious mix",
-        kind: Kind::Percent,
-    },
-    Def {
-        field: Field::Inflation,
-        id: "inflation",
-        label: "Inflation",
-        hint: "SARB target range is 3–6%",
-        kind: Kind::Percent,
-    },
-    Def {
-        field: Field::DesiredIncome,
-        id: "income",
-        label: "Monthly income in retirement",
-        hint: "In today's money, before tax",
-        kind: Kind::Money,
-    },
-];
-
-const GROUPS: [(&str, &[usize]); 4] = [
-    ("About you", &[0, 1, 2]),
-    ("Saving", &[3, 4, 5]),
-    ("Growth and inflation", &[6, 7, 8]),
-    ("Retirement income", &[9]),
-];
-
-fn group_digits(value: f64) -> String {
-    group_thousands(&format!("{:.0}", value.abs().round()), ' ')
-}
-
-fn to_text(i: &Inputs) -> [String; 10] {
-    [
-        i.current_age.to_string(),
-        i.retire_age.to_string(),
-        i.life_expectancy.to_string(),
-        group_digits(i.savings),
-        group_digits(i.monthly_contribution),
-        i.contribution_increase.to_string(),
-        i.return_pre.to_string(),
-        i.return_post.to_string(),
-        i.inflation.to_string(),
-        group_digits(i.desired_income),
-    ]
-}
-
-fn parse(kind: Kind, raw: &str) -> Option<f64> {
-    let cleaned: String = raw
-        .chars()
-        .filter(|c| !c.is_whitespace() && !matches!(c, 'R' | 'r' | '%' | '\u{a0}'))
-        .collect();
-    let normal = match kind {
-        Kind::Money => cleaned.replace(',', ""),
-        _ => cleaned.replace(',', "."),
-    };
-    if normal.is_empty() {
-        return None;
-    }
-    let value: f64 = normal.parse().ok()?;
-    if !value.is_finite() {
-        return None;
-    }
-    if kind == Kind::Age && (value.fract() != 0.0 || !(0.0..=200.0).contains(&value)) {
-        return None;
-    }
-    Some(value)
-}
-
-fn read_form(text: &[RwSignal<String>; 10]) -> Result<Inputs, Vec<Issue>> {
-    let mut values = [0.0_f64; 10];
-    let mut issues = Vec::new();
-    for (n, def) in DEFS.iter().enumerate() {
-        match parse(def.kind, &text[n].get()) {
-            Some(v) => values[n] = v,
-            None => issues.push(Issue {
-                field: def.field,
-                message: match def.kind {
-                    Kind::Age => format!("{}: enter a whole number of years.", def.label),
-                    _ => format!("{}: enter a number.", def.label),
-                },
-            }),
-        }
-    }
-    if !issues.is_empty() {
-        return Err(issues);
-    }
-    let inputs = Inputs {
-        current_age: values[0] as u32,
-        retire_age: values[1] as u32,
-        life_expectancy: values[2] as u32,
-        savings: values[3],
-        monthly_contribution: values[4],
-        contribution_increase: values[5],
-        return_pre: values[6],
-        return_post: values[7],
-        inflation: values[8],
-        desired_income: values[9],
-    };
-    let issues = validate(&inputs);
-    if issues.is_empty() {
-        Ok(inputs)
-    } else {
-        Err(issues)
-    }
-}
 
 #[derive(Clone, PartialEq)]
 struct Outcome {
@@ -216,8 +43,8 @@ pub fn App() -> impl IntoView {
     let storage_ok = RwSignal::new(store::available());
     let repaired = inputs_state == Loaded::Repaired || scenarios_state == Loaded::Repaired;
 
-    let text: [RwSignal<String>; 10] = to_text(&initial).map(RwSignal::new);
-    let parsed = Memo::new(move |_| read_form(&text));
+    let text = FormText::new(&initial);
+    let parsed = Memo::new(move |_| text.read());
     let result = Memo::new(move |_| parsed.get().ok().and_then(outcome));
     let scenarios = RwSignal::new(saved);
     let name = RwSignal::new(String::new());
@@ -268,9 +95,7 @@ pub fn App() -> impl IntoView {
     };
 
     let load = move |s: Scenario| {
-        for (sig, value) in text.iter().zip(to_text(&s.inputs)) {
-            sig.set(value);
-        }
+        text.fill(&s.inputs);
         name.set(s.name.clone());
         notice.set(format!("Loaded “{}”.", s.name));
     };
@@ -329,9 +154,7 @@ pub fn App() -> impl IntoView {
     };
 
     let reset = move |_| {
-        for (sig, value) in text.iter().zip(to_text(&Inputs::default())) {
-            sig.set(value);
-        }
+        text.fill(&Inputs::default());
         notice.set("Inputs reset to the defaults.".to_string());
     };
 
@@ -446,10 +269,9 @@ pub fn App() -> impl IntoView {
         })
     };
 
-    let field_view = move |n: usize| {
-        let def = &DEFS[n];
-        let sig = text[n];
-        let field = def.field;
+    let field_view = move |field: Field| {
+        let def = field_def(field);
+        let sig = text.signal(field);
         let kind = def.kind;
         let id = def.id;
         let hint_id = format!("{id}-hint");
@@ -466,9 +288,9 @@ pub fn App() -> impl IntoView {
             ids.join(" ")
         };
         let (prefix, suffix, mode) = match kind {
-            Kind::Age => (None, Some("years"), "numeric"),
-            Kind::Money => (Some("R"), None, "decimal"),
-            Kind::Percent => (None, Some("%"), "decimal"),
+            FieldKind::Age => (None, Some("years"), "numeric"),
+            FieldKind::Money => (Some("R"), None, "decimal"),
+            FieldKind::Percent => (None, Some("%"), "decimal"),
         };
         view! {
             <div class="field" class:field-invalid=move || issue_for(field).is_some()>
@@ -489,7 +311,7 @@ pub fn App() -> impl IntoView {
                         prop:value=move || sig.get()
                         on:input=move |ev| sig.set(event_target_value(&ev))
                         on:change=move |_| {
-                            if kind == Kind::Money {
+                            if kind == FieldKind::Money {
                                 if let Some(v) = parse(kind, &sig.get_untracked()) {
                                     if v >= 0.0 {
                                         sig.set(group_digits(v));
@@ -506,14 +328,14 @@ pub fn App() -> impl IntoView {
         }
     };
 
-    let form = GROUPS
+    let form = FIELD_GROUPS
         .iter()
         .map(|(title, members)| {
             view! {
                 <fieldset class="group">
                     <legend>{*title}</legend>
                     <div class="group-fields">
-                        {members.iter().map(|n| field_view(*n)).collect_view()}
+                        {members.iter().map(|field| field_view(*field)).collect_view()}
                     </div>
                 </fieldset>
             }
@@ -714,120 +536,5 @@ pub fn App() -> impl IntoView {
                 <p>"Illustration only, not financial advice. Returns are assumed constant and compound monthly; contributions rise once a year; withdrawals rise with inflation once a year. Tax and fees are not modelled."</p>
             </footer>
         </div>
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    fn signals(inputs: &Inputs) -> [RwSignal<String>; 10] {
-        to_text(inputs).map(RwSignal::new)
-    }
-
-    #[test]
-    fn parse_reads_money_with_separators_and_prefix() {
-        assert_eq!(parse(Kind::Money, "R 1 234 567"), Some(1_234_567.0));
-        assert_eq!(parse(Kind::Money, "1,234,567"), Some(1_234_567.0));
-        assert_eq!(parse(Kind::Money, "1\u{a0}000"), Some(1_000.0));
-        assert_eq!(parse(Kind::Money, "12.5"), Some(12.5));
-        assert_eq!(parse(Kind::Money, "-5"), Some(-5.0));
-    }
-
-    #[test]
-    fn parse_reads_percent_with_comma_decimal() {
-        assert_eq!(parse(Kind::Percent, "7,5"), Some(7.5));
-        assert_eq!(parse(Kind::Percent, "7.5 %"), Some(7.5));
-        assert_eq!(parse(Kind::Percent, "-3"), Some(-3.0));
-    }
-
-    #[test]
-    fn parse_accepts_only_whole_ages_up_to_200() {
-        assert_eq!(parse(Kind::Age, "35"), Some(35.0));
-        assert_eq!(parse(Kind::Age, "200"), Some(200.0));
-        assert_eq!(parse(Kind::Age, "201"), None);
-        assert_eq!(parse(Kind::Age, "30.5"), None);
-        assert_eq!(parse(Kind::Age, "-1"), None);
-    }
-
-    #[test]
-    fn parse_rejects_empty_and_non_numbers() {
-        assert_eq!(parse(Kind::Money, ""), None);
-        assert_eq!(parse(Kind::Money, "   "), None);
-        assert_eq!(parse(Kind::Money, "abc"), None);
-        assert_eq!(parse(Kind::Percent, "inf"), None);
-        assert_eq!(parse(Kind::Percent, "NaN"), None);
-    }
-
-    #[test]
-    fn parse_strips_r_and_percent_anywhere() {
-        assert_eq!(parse(Kind::Money, "1r2"), Some(12.0));
-        assert_eq!(parse(Kind::Percent, "1%2"), Some(12.0));
-    }
-
-    #[test]
-    fn group_digits_uses_plain_spaces_and_drops_the_sign() {
-        assert_eq!(group_digits(1_234_567.0), "1 234 567");
-        assert_eq!(group_digits(999.6), "1 000");
-        assert_eq!(group_digits(0.0), "0");
-        assert_eq!(group_digits(-2_500.0), "2 500");
-    }
-
-    #[test]
-    fn to_text_lists_fields_in_form_order() {
-        assert_eq!(
-            to_text(&Inputs::default()),
-            ["35", "65", "90", "250 000", "5 000", "5", "10", "7", "5", "25 000"].map(String::from)
-        );
-    }
-
-    #[test]
-    fn read_form_round_trips_to_text() {
-        let inputs = Inputs {
-            current_age: 41,
-            retire_age: 63,
-            life_expectancy: 95,
-            savings: 1_234_567.0,
-            monthly_contribution: 8_000.0,
-            contribution_increase: 4.5,
-            return_pre: 9.25,
-            return_post: -2.0,
-            inflation: 5.5,
-            desired_income: 30_000.0,
-        };
-        assert_eq!(read_form(&signals(&inputs)), Ok(inputs));
-        assert_eq!(
-            read_form(&signals(&Inputs::default())),
-            Ok(Inputs::default())
-        );
-    }
-
-    #[test]
-    fn read_form_reports_unreadable_fields_in_order() {
-        let text = signals(&Inputs::default());
-        text[0].set("thirty".to_string());
-        text[3].set(String::new());
-        assert_eq!(
-            read_form(&text),
-            Err(vec![
-                Issue {
-                    field: Field::CurrentAge,
-                    message: "Current age: enter a whole number of years.".to_string(),
-                },
-                Issue {
-                    field: Field::Savings,
-                    message: "Current savings: enter a number.".to_string(),
-                },
-            ])
-        );
-    }
-
-    #[test]
-    fn read_form_passes_on_validation_issues() {
-        let text = signals(&Inputs::default());
-        text[1].set("30".to_string());
-        let issues = read_form(&text).unwrap_err();
-        assert_eq!(issues.len(), 1);
-        assert_eq!(issues[0].field, Field::RetireAge);
     }
 }

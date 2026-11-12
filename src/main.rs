@@ -1,6 +1,7 @@
 mod app;
 mod calc;
 mod chart;
+mod form;
 mod format;
 mod store;
 

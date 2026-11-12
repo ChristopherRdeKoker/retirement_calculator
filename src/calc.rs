@@ -48,6 +48,57 @@ pub enum Field {
     DesiredIncome,
 }
 
+impl Field {
+    pub const ALL: [Field; 10] = [
+        Field::CurrentAge,
+        Field::RetireAge,
+        Field::LifeExpectancy,
+        Field::Savings,
+        Field::MonthlyContribution,
+        Field::ContributionIncrease,
+        Field::ReturnPre,
+        Field::ReturnPost,
+        Field::Inflation,
+        Field::DesiredIncome,
+    ];
+
+    pub fn index(self) -> usize {
+        self as usize
+    }
+}
+
+impl Inputs {
+    pub fn value(&self, field: Field) -> f64 {
+        match field {
+            Field::CurrentAge => self.current_age as f64,
+            Field::RetireAge => self.retire_age as f64,
+            Field::LifeExpectancy => self.life_expectancy as f64,
+            Field::Savings => self.savings,
+            Field::MonthlyContribution => self.monthly_contribution,
+            Field::ContributionIncrease => self.contribution_increase,
+            Field::ReturnPre => self.return_pre,
+            Field::ReturnPost => self.return_post,
+            Field::Inflation => self.inflation,
+            Field::DesiredIncome => self.desired_income,
+        }
+    }
+
+    pub fn set_value(&mut self, field: Field, value: f64) {
+        match field {
+            Field::CurrentAge => self.current_age = value as u32,
+            Field::RetireAge => self.retire_age = value as u32,
+            Field::LifeExpectancy => self.life_expectancy = value as u32,
+            Field::Savings => self.savings = value,
+            Field::MonthlyContribution => self.monthly_contribution = value,
+            Field::ContributionIncrease => self.contribution_increase = value,
+            Field::ReturnPre => self.return_pre = value,
+            Field::ReturnPost => self.return_post = value,
+            Field::Inflation => self.inflation = value,
+            Field::DesiredIncome => self.desired_income = value,
+        }
+    }
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub struct Issue {
     pub field: Field,
@@ -328,6 +379,26 @@ mod tests {
 
     fn close(a: f64, b: f64) -> bool {
         (a - b).abs() <= 1e-6 * b.abs().max(1.0)
+    }
+
+    #[test]
+    fn field_index_follows_the_order_of_all() {
+        for (position, field) in Field::ALL.into_iter().enumerate() {
+            assert_eq!(field.index(), position);
+        }
+    }
+
+    #[test]
+    fn set_value_then_value_reads_back_every_field() {
+        let mut inputs = Inputs::default();
+        for (position, field) in Field::ALL.into_iter().enumerate() {
+            inputs.set_value(field, 40.0 + position as f64);
+        }
+        for (position, field) in Field::ALL.into_iter().enumerate() {
+            assert_eq!(inputs.value(field), 40.0 + position as f64);
+        }
+        assert_eq!(inputs.current_age, 40);
+        assert_eq!(inputs.desired_income, 49.0);
     }
 
     #[test]
