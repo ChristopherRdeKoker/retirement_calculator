@@ -95,6 +95,7 @@ pub fn save_scenarios(list: &[Scenario]) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::calc::Deposit;
 
     fn scenario_json(name: &str, inputs: &Inputs) -> serde_json::Value {
         serde_json::json!({ "name": name, "inputs": inputs })
@@ -186,6 +187,75 @@ mod tests {
         .to_string();
         let (list, state) = parse_scenarios(&raw);
         assert_eq!(names(&list), ["A", "B", "C"]);
+        assert_eq!(state, Loaded::Repaired);
+    }
+
+    const OLD_INPUTS_WITHOUT_DEPOSITS: &str = r#"{"current_age":35,"retire_age":65,"life_expectancy":90,"savings":250000.0,"monthly_contribution":5000.0,"contribution_increase":5.0,"return_pre":10.0,"return_post":7.0,"inflation":5.0,"desired_income":25000.0}"#;
+
+    fn with_deposits(deposits: Vec<Deposit>) -> Inputs {
+        Inputs {
+            deposits,
+            ..Inputs::default()
+        }
+    }
+
+    #[test]
+    fn inputs_saved_before_deposits_existed_load_with_no_deposits() {
+        assert_eq!(
+            parse_inputs(OLD_INPUTS_WITHOUT_DEPOSITS),
+            (Inputs::default(), Loaded::Valid)
+        );
+        assert_eq!(
+            serde_json::to_string(&Inputs::default()).unwrap(),
+            OLD_INPUTS_WITHOUT_DEPOSITS
+        );
+    }
+
+    #[test]
+    fn scenarios_saved_before_deposits_existed_load_with_no_deposits() {
+        let raw = format!(r#"[{{"name":"Old plan","inputs":{OLD_INPUTS_WITHOUT_DEPOSITS}}}]"#);
+        let (list, state) = parse_scenarios(&raw);
+        assert_eq!(state, Loaded::Valid);
+        assert_eq!(names(&list), ["Old plan"]);
+        assert!(list[0].inputs.deposits.is_empty());
+        assert_eq!(list[0].inputs, Inputs::default());
+    }
+
+    #[test]
+    fn scenario_deposits_round_trip() {
+        let inputs = with_deposits(vec![
+            Deposit {
+                year: 3,
+                amount: 100_000.0,
+            },
+            Deposit {
+                year: 3,
+                amount: 5_000.0,
+            },
+        ]);
+        let raw = serde_json::json!([scenario_json("Bonus", &inputs)]).to_string();
+        let (list, state) = parse_scenarios(&raw);
+        assert_eq!(state, Loaded::Valid);
+        assert_eq!(list[0].inputs, inputs);
+        let json = serde_json::to_string(&inputs).unwrap();
+        assert!(json
+            .ends_with(r#""deposits":[{"year":3,"amount":100000.0},{"year":3,"amount":5000.0}]}"#));
+        assert_eq!(parse_inputs(&json), (inputs, Loaded::Valid));
+    }
+
+    #[test]
+    fn scenario_with_an_invalid_deposit_is_dropped() {
+        let late = with_deposits(vec![Deposit {
+            year: 31,
+            amount: 1_000.0,
+        }]);
+        let raw = serde_json::json!([
+            scenario_json("Late", &late),
+            scenario_json("Fine", &Inputs::default()),
+        ])
+        .to_string();
+        let (list, state) = parse_scenarios(&raw);
+        assert_eq!(names(&list), ["Fine"]);
         assert_eq!(state, Loaded::Repaired);
     }
 }
