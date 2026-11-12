@@ -1,6 +1,7 @@
 mod app;
 mod calc;
 mod chart;
+mod format;
 mod store;
 
 use wasm_bindgen::JsCast;

@@ -307,48 +307,6 @@ pub fn sustainable_income(i: &Inputs) -> Option<f64> {
     Some(lo)
 }
 
-pub fn format_rand(value: f64) -> String {
-    if !value.is_finite() {
-        return "R —".to_string();
-    }
-    let rounded = value.abs().round();
-    let digits = format!("{rounded:.0}");
-    let mut grouped = String::new();
-    for (n, ch) in digits.chars().enumerate() {
-        if n > 0 && (digits.len() - n) % 3 == 0 {
-            grouped.push('\u{a0}');
-        }
-        grouped.push(ch);
-    }
-    let sign = if value < 0.0 && rounded > 0.0 {
-        "−"
-    } else {
-        ""
-    };
-    format!("{sign}R\u{a0}{grouped}")
-}
-
-pub fn format_compact(value: f64) -> String {
-    let v = value.abs();
-    let (scaled, suffix) = if v >= 1e12 {
-        (value / 1e12, "tn")
-    } else if v >= 1e9 {
-        (value / 1e9, "bn")
-    } else if v >= 1e6 {
-        (value / 1e6, "m")
-    } else if v >= 1e3 {
-        (value / 1e3, "k")
-    } else {
-        return format!("R{value:.0}");
-    };
-    let text = if scaled.abs() >= 100.0 || (scaled - scaled.round()).abs() < 0.05 {
-        format!("{scaled:.0}")
-    } else {
-        format!("{scaled:.1}")
-    };
-    format!("R{text}{suffix}")
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -582,7 +540,7 @@ mod tests {
             .iter()
             .all(|pt| pt.nominal.is_finite() && pt.real.is_finite()));
         assert!(sustainable_income(&i).unwrap().is_finite());
-        assert!(format_rand(p.pot_nominal).starts_with("R\u{a0}"));
+        assert!(crate::format::format_rand(p.pot_nominal).starts_with("R\u{a0}"));
     }
 
     #[test]
@@ -601,18 +559,6 @@ mod tests {
         i.return_pre = -12.0;
         let p = project(&i).unwrap();
         assert!(p.pot_nominal < 100_000.0 + 120_000.0);
-    }
-
-    #[test]
-    fn rand_formatting() {
-        assert_eq!(format_rand(1_234_567.0), "R\u{a0}1\u{a0}234\u{a0}567");
-        assert_eq!(format_rand(999.4), "R\u{a0}999");
-        assert_eq!(format_rand(0.0), "R\u{a0}0");
-        assert_eq!(format_rand(-1_500.0), "−R\u{a0}1\u{a0}500");
-        assert_eq!(format_rand(f64::NAN), "R —");
-        assert_eq!(format_compact(2_500_000.0), "R2.5m");
-        assert_eq!(format_compact(12_000.0), "R12k");
-        assert_eq!(format_compact(0.0), "R0");
     }
 
     const LUMP_50K_PLUS_2K_A_MONTH_AT_6_PERCENT_FOR_5_YEARS: f64 = 206_982.568_647;
@@ -867,37 +813,5 @@ mod tests {
             above.desired_income = income * 1.001 + 1.0;
             assert!(!project(&above).unwrap().sustainable, "{base:?}");
         }
-    }
-
-    #[test]
-    fn rand_rounds_half_away_from_zero_and_hides_negative_zero() {
-        assert_eq!(format_rand(0.5), "R\u{a0}1");
-        assert_eq!(format_rand(1_499.5), "R\u{a0}1\u{a0}500");
-        assert_eq!(format_rand(-0.4), "R\u{a0}0");
-        assert_eq!(format_rand(-0.5), "−R\u{a0}1");
-        assert_eq!(format_rand(-1_234_567.8), "−R\u{a0}1\u{a0}234\u{a0}568");
-    }
-
-    #[test]
-    fn rand_groups_large_numbers_with_non_breaking_spaces() {
-        assert_eq!(
-            format_rand(MAX_MONEY),
-            "R\u{a0}1\u{a0}000\u{a0}000\u{a0}000\u{a0}000"
-        );
-        assert_eq!(format_rand(100_000.0), "R\u{a0}100\u{a0}000");
-        assert_eq!(format_rand(1_000.0), "R\u{a0}1\u{a0}000");
-        assert_eq!(format_rand(f64::INFINITY), "R —");
-        assert!(!format_rand(1e25).contains(' '));
-    }
-
-    #[test]
-    fn compact_rand_picks_a_suffix_and_one_decimal() {
-        assert_eq!(format_compact(999.0), "R999");
-        assert_eq!(format_compact(1_000.0), "R1k");
-        assert_eq!(format_compact(1_500.0), "R1.5k");
-        assert_eq!(format_compact(123_456_000.0), "R123m");
-        assert_eq!(format_compact(-2_500_000.0), "R-2.5m");
-        assert_eq!(format_compact(3_960_000_000.0), "R4bn");
-        assert_eq!(format_compact(MAX_MONEY), "R1tn");
     }
 }

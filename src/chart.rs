@@ -1,4 +1,5 @@
-use crate::calc::{format_compact, format_rand, Point, MAX_AGE};
+use crate::calc::{Point, MAX_AGE};
+use crate::format::{format_compact, format_rand};
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
 

@@ -1,8 +1,6 @@
-use crate::calc::{
-    format_compact, format_rand, project, sustainable_income, validate, Field, Inputs, Issue,
-    Projection,
-};
+use crate::calc::{project, sustainable_income, validate, Field, Inputs, Issue, Projection};
 use crate::chart::{Chart, ChartData};
+use crate::format::{format_compact, format_rand, group_thousands};
 use crate::store::{self, Loaded, Scenario, MAX_NAME, MAX_SCENARIOS};
 use leptos::prelude::*;
 
@@ -102,15 +100,7 @@ const GROUPS: [(&str, &[usize]); 4] = [
 ];
 
 fn group_digits(value: f64) -> String {
-    let digits = format!("{:.0}", value.abs().round());
-    let mut out = String::new();
-    for (n, ch) in digits.chars().enumerate() {
-        if n > 0 && (digits.len() - n) % 3 == 0 {
-            out.push(' ');
-        }
-        out.push(ch);
-    }
-    out
+    group_thousands(&format!("{:.0}", value.abs().round()), ' ')
 }
 
 fn to_text(i: &Inputs) -> [String; 10] {
