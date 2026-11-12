@@ -1,16 +1,8 @@
 use crate::calc::{validate, Inputs};
-use serde::{Deserialize, Serialize};
+use crate::scenarios::{clean_name, Scenario, MAX_SCENARIOS};
 
 const INPUTS_KEY: &str = "retire-calc.inputs.v1";
 const SCENARIOS_KEY: &str = "retire-calc.scenarios.v1";
-pub const MAX_SCENARIOS: usize = 3;
-pub const MAX_NAME: usize = 32;
-
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
-pub struct Scenario {
-    pub name: String,
-    pub inputs: Inputs,
-}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Loaded {
@@ -55,15 +47,6 @@ pub fn save_inputs(i: &Inputs) -> bool {
     }
 }
 
-pub fn clean_name(name: &str) -> String {
-    name.split_whitespace()
-        .collect::<Vec<_>>()
-        .join(" ")
-        .chars()
-        .take(MAX_NAME)
-        .collect()
-}
-
 pub fn load_scenarios() -> (Vec<Scenario>, Loaded) {
     let Some(raw) = read_raw(SCENARIOS_KEY) else {
         return (Vec::new(), Loaded::Fresh);
@@ -97,17 +80,5 @@ pub fn save_scenarios(list: &[Scenario]) -> bool {
     match serde_json::to_string(list) {
         Ok(json) => write_raw(SCENARIOS_KEY, &json),
         Err(_) => false,
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use super::*;
-
-    #[test]
-    fn clean_name_collapses_whitespace_and_caps_length() {
-        assert_eq!(clean_name("  Retire   at\t60 \n"), "Retire at 60");
-        assert_eq!(clean_name("   "), "");
-        assert_eq!(clean_name(&"é".repeat(40)), "é".repeat(MAX_NAME));
     }
 }

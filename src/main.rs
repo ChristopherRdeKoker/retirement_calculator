@@ -5,6 +5,7 @@ mod components;
 mod form;
 mod format;
 mod outcome;
+mod scenarios;
 mod store;
 
 use wasm_bindgen::JsCast;

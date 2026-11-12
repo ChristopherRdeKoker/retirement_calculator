@@ -1,5 +1,9 @@
+pub mod compare_table;
 pub mod input_form;
 pub mod number_field;
 pub mod projection_table;
+pub mod save_scenario_form;
 pub mod savings_card;
+pub mod scenario_list;
+pub mod scenario_panel;
 pub mod summary;
