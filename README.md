@@ -29,7 +29,7 @@ trunk serve
 trunk build --release --public-url /apps/retirement/
 ```
 
-`trunk serve` serves the app at `http://127.0.0.1:8080/apps/retirement/`.
+`trunk serve` runs a local development server with live reload; the app is served under the `public_url` set in `Trunk.toml`.
 
 ## Deploying
 

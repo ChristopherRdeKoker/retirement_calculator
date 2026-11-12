@@ -717,9 +717,11 @@ details summary:focus-visible,
 
 .compare thead th {
   color: var(--ink);
-  max-width: 9rem;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  white-space: normal;
+  overflow-wrap: break-word;
+  hyphens: auto;
+  vertical-align: bottom;
+  min-width: 4.5rem;
 }
 
 .compare td.good {

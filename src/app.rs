@@ -254,6 +254,21 @@ pub fn App() -> impl IntoView {
         })
     });
 
+    let has_chart = Memo::new(move |_| chart_data.with(|d| d.is_some()));
+
+    let announcement = move || match result.get() {
+        Some(o) => format!(
+            "{}. {}",
+            headline(&o),
+            if o.projection.sustainable {
+                "Your desired income is sustainable."
+            } else {
+                "Your desired income is not sustainable."
+            }
+        ),
+        None => "Check your inputs.".to_string(),
+    };
+
     let issue_for = move |field: Field| {
         parsed
             .get()
@@ -642,14 +657,15 @@ pub fn App() -> impl IntoView {
                 <p class="lede">"See how long your savings could last. All amounts are in South African rand, and nothing leaves your browser."</p>
             </header>
             <main class="layout">
-                <div class="area-summary" aria-live="polite">{summary}</div>
+                <p class="visually-hidden" role="status" aria-live="polite">{announcement}</p>
+                <div class="area-summary">{summary}</div>
                 <section class="card area-chart" aria-labelledby="chart-title">
                     <div class="card-head">
                         <h2 id="chart-title">"Savings by age"</h2>
                         <p class="card-sub">"Balance in today's money: growth while you save, then drawdown"</p>
                     </div>
                     {move || {
-                        if chart_data.get().is_some() {
+                        if has_chart.get() {
                             view! { <Chart data=chart_data /> }.into_any()
                         } else {
                             view! { <p class="empty">"The chart appears once the inputs are valid."</p> }.into_any()
