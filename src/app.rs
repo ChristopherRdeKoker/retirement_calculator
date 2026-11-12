@@ -726,3 +726,118 @@ pub fn App() -> impl IntoView {
         </div>
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn signals(inputs: &Inputs) -> [RwSignal<String>; 10] {
+        to_text(inputs).map(RwSignal::new)
+    }
+
+    #[test]
+    fn parse_reads_money_with_separators_and_prefix() {
+        assert_eq!(parse(Kind::Money, "R 1 234 567"), Some(1_234_567.0));
+        assert_eq!(parse(Kind::Money, "1,234,567"), Some(1_234_567.0));
+        assert_eq!(parse(Kind::Money, "1\u{a0}000"), Some(1_000.0));
+        assert_eq!(parse(Kind::Money, "12.5"), Some(12.5));
+        assert_eq!(parse(Kind::Money, "-5"), Some(-5.0));
+    }
+
+    #[test]
+    fn parse_reads_percent_with_comma_decimal() {
+        assert_eq!(parse(Kind::Percent, "7,5"), Some(7.5));
+        assert_eq!(parse(Kind::Percent, "7.5 %"), Some(7.5));
+        assert_eq!(parse(Kind::Percent, "-3"), Some(-3.0));
+    }
+
+    #[test]
+    fn parse_accepts_only_whole_ages_up_to_200() {
+        assert_eq!(parse(Kind::Age, "35"), Some(35.0));
+        assert_eq!(parse(Kind::Age, "200"), Some(200.0));
+        assert_eq!(parse(Kind::Age, "201"), None);
+        assert_eq!(parse(Kind::Age, "30.5"), None);
+        assert_eq!(parse(Kind::Age, "-1"), None);
+    }
+
+    #[test]
+    fn parse_rejects_empty_and_non_numbers() {
+        assert_eq!(parse(Kind::Money, ""), None);
+        assert_eq!(parse(Kind::Money, "   "), None);
+        assert_eq!(parse(Kind::Money, "abc"), None);
+        assert_eq!(parse(Kind::Percent, "inf"), None);
+        assert_eq!(parse(Kind::Percent, "NaN"), None);
+    }
+
+    #[test]
+    fn parse_strips_r_and_percent_anywhere() {
+        assert_eq!(parse(Kind::Money, "1r2"), Some(12.0));
+        assert_eq!(parse(Kind::Percent, "1%2"), Some(12.0));
+    }
+
+    #[test]
+    fn group_digits_uses_plain_spaces_and_drops_the_sign() {
+        assert_eq!(group_digits(1_234_567.0), "1 234 567");
+        assert_eq!(group_digits(999.6), "1 000");
+        assert_eq!(group_digits(0.0), "0");
+        assert_eq!(group_digits(-2_500.0), "2 500");
+    }
+
+    #[test]
+    fn to_text_lists_fields_in_form_order() {
+        assert_eq!(
+            to_text(&Inputs::default()),
+            ["35", "65", "90", "250 000", "5 000", "5", "10", "7", "5", "25 000"].map(String::from)
+        );
+    }
+
+    #[test]
+    fn read_form_round_trips_to_text() {
+        let inputs = Inputs {
+            current_age: 41,
+            retire_age: 63,
+            life_expectancy: 95,
+            savings: 1_234_567.0,
+            monthly_contribution: 8_000.0,
+            contribution_increase: 4.5,
+            return_pre: 9.25,
+            return_post: -2.0,
+            inflation: 5.5,
+            desired_income: 30_000.0,
+        };
+        assert_eq!(read_form(&signals(&inputs)), Ok(inputs));
+        assert_eq!(
+            read_form(&signals(&Inputs::default())),
+            Ok(Inputs::default())
+        );
+    }
+
+    #[test]
+    fn read_form_reports_unreadable_fields_in_order() {
+        let text = signals(&Inputs::default());
+        text[0].set("thirty".to_string());
+        text[3].set(String::new());
+        assert_eq!(
+            read_form(&text),
+            Err(vec![
+                Issue {
+                    field: Field::CurrentAge,
+                    message: "Current age: enter a whole number of years.".to_string(),
+                },
+                Issue {
+                    field: Field::Savings,
+                    message: "Current savings: enter a number.".to_string(),
+                },
+            ])
+        );
+    }
+
+    #[test]
+    fn read_form_passes_on_validation_issues() {
+        let text = signals(&Inputs::default());
+        text[1].set("30".to_string());
+        let issues = read_form(&text).unwrap_err();
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].field, Field::RetireAge);
+    }
+}

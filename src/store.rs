@@ -99,3 +99,15 @@ pub fn save_scenarios(list: &[Scenario]) -> bool {
         Err(_) => false,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn clean_name_collapses_whitespace_and_caps_length() {
+        assert_eq!(clean_name("  Retire   at\t60 \n"), "Retire at 60");
+        assert_eq!(clean_name("   "), "");
+        assert_eq!(clean_name(&"é".repeat(40)), "é".repeat(MAX_NAME));
+    }
+}

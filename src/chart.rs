@@ -335,3 +335,72 @@ pub fn Chart(data: Memo<Option<ChartData>>) -> impl IntoView {
         </div>
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn data(life_expectancy: u32) -> ChartData {
+        ChartData {
+            points: (30..=MAX_AGE)
+                .map(|age| Point {
+                    age,
+                    nominal: 0.0,
+                    real: if age <= 60 {
+                        (age - 30) as f64 * 1_000.0
+                    } else {
+                        0.0
+                    },
+                })
+                .collect(),
+            retire_age: 60,
+            life_expectancy,
+            depleted_at: Some(61.0),
+        }
+    }
+
+    #[test]
+    fn nice_ticks_round_up_to_a_tidy_step() {
+        assert_eq!(nice_ticks(0.0), (1.0, vec![0.0, 1.0]));
+        assert_eq!(nice_ticks(f64::NAN), (1.0, vec![0.0, 1.0]));
+        assert_eq!(nice_ticks(-5.0), (1.0, vec![0.0, 1.0]));
+        assert_eq!(
+            nice_ticks(30_000.0),
+            (30_000.0, vec![0.0, 10_000.0, 20_000.0, 30_000.0])
+        );
+        assert_eq!(
+            nice_ticks(9_000.0),
+            (10_000.0, vec![0.0, 2_500.0, 5_000.0, 7_500.0, 10_000.0])
+        );
+        assert_eq!(
+            nice_ticks(1_000_001.0),
+            (1_500_000.0, vec![0.0, 500_000.0, 1_000_000.0, 1_500_000.0])
+        );
+    }
+
+    #[test]
+    fn geometry_window_ends_five_years_after_life_expectancy() {
+        assert_eq!(Geom::new(data(80), 640.0).end, 85);
+        assert_eq!(Geom::new(data(98), 640.0).end, MAX_AGE);
+    }
+
+    #[test]
+    fn geometry_maps_ages_and_values_to_the_plot() {
+        let g = Geom::new(data(80), 640.0);
+        assert_eq!(g.start, 30);
+        assert_eq!(g.y_max, 30_000.0);
+        assert_eq!(g.x(30.0), PAD_L);
+        assert_eq!(g.x(85.0), 640.0 - PAD_R);
+        assert_eq!(g.y(0.0), HEIGHT - PAD_B);
+        assert_eq!(g.y(30_000.0), PAD_T);
+        assert_eq!(g.y(60_000.0), PAD_T);
+        assert_eq!(g.y(-1.0), HEIGHT - PAD_B);
+        assert_eq!(g.y(f64::NAN), PAD_T);
+    }
+
+    #[test]
+    fn geometry_keeps_a_minimum_plot_width() {
+        let g = Geom::new(data(80), 20.0);
+        assert_eq!(g.plot_w(), 10.0);
+    }
+}
