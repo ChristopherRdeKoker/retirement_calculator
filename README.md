@@ -26,7 +26,7 @@ Requires Rust with the `wasm32-unknown-unknown` target and Trunk 0.22.
 ```sh
 cargo test
 trunk serve
-trunk build --release --public-url /apps/retirement/
+RUSTFLAGS="--remap-path-prefix=$HOME=~" trunk build --release --public-url /apps/retirement/
 ```
 
 `trunk serve` runs a local development server with live reload; the app is served under the `public_url` set in `Trunk.toml`.
