@@ -248,25 +248,28 @@ mod tests {
 
     #[test]
     fn life_expectancy_must_follow_retirement() {
-        let mut i = flat();
-        i.life_expectancy = 40;
-        assert!(validate(&i)
+        let mut inputs = flat();
+        inputs.life_expectancy = 40;
+        assert!(validate(&inputs)
             .iter()
-            .any(|x| x.field == Field::LifeExpectancy));
-        i.life_expectancy = 101;
-        assert!(validate(&i)
+            .any(|issue| issue.field == Field::LifeExpectancy));
+        inputs.life_expectancy = 101;
+        assert!(validate(&inputs)
             .iter()
-            .any(|x| x.field == Field::LifeExpectancy));
+            .any(|issue| issue.field == Field::LifeExpectancy));
     }
 
     #[test]
     fn rejects_negative_nan_and_out_of_range() {
-        let mut i = flat();
-        i.savings = -1.0;
-        i.return_pre = f64::NAN;
-        i.inflation = 80.0;
-        i.monthly_contribution = f64::INFINITY;
-        let fields: Vec<Field> = validate(&i).into_iter().map(|x| x.field).collect();
+        let mut inputs = flat();
+        inputs.savings = -1.0;
+        inputs.return_pre = f64::NAN;
+        inputs.inflation = 80.0;
+        inputs.monthly_contribution = f64::INFINITY;
+        let fields: Vec<Field> = validate(&inputs)
+            .into_iter()
+            .map(|issue| issue.field)
+            .collect();
         assert!(fields.contains(&Field::Savings));
         assert!(fields.contains(&Field::ReturnPre));
         assert!(fields.contains(&Field::Inflation));
@@ -275,12 +278,15 @@ mod tests {
 
     #[test]
     fn validation_messages_are_exact() {
-        let mut i = flat();
-        i.current_age = 15;
-        i.savings = MAX_MONEY * 2.0;
-        i.monthly_contribution = -1.0;
-        i.inflation = -11.0;
-        let messages: Vec<String> = validate(&i).into_iter().map(|x| x.message).collect();
+        let mut inputs = flat();
+        inputs.current_age = 15;
+        inputs.savings = MAX_MONEY * 2.0;
+        inputs.monthly_contribution = -1.0;
+        inputs.inflation = -11.0;
+        let messages: Vec<String> = validate(&inputs)
+            .into_iter()
+            .map(|issue| issue.message)
+            .collect();
         assert_eq!(
             messages,
             [
@@ -290,11 +296,14 @@ mod tests {
                 "Inflation must be between -10% and 50%.",
             ]
         );
-        let mut i = flat();
-        i.retire_age = MAX_AGE;
-        i.life_expectancy = MAX_AGE + 1;
-        i.return_pre = 51.0;
-        let messages: Vec<String> = validate(&i).into_iter().map(|x| x.message).collect();
+        let mut inputs = flat();
+        inputs.retire_age = MAX_AGE;
+        inputs.life_expectancy = MAX_AGE + 1;
+        inputs.return_pre = 51.0;
+        let messages: Vec<String> = validate(&inputs)
+            .into_iter()
+            .map(|issue| issue.message)
+            .collect();
         assert_eq!(
             messages,
             [

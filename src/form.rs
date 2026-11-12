@@ -116,7 +116,9 @@ pub fn field_text(field: Field, inputs: &Inputs) -> String {
 pub fn parse(kind: FieldKind, raw: &str) -> Option<f64> {
     let cleaned: String = raw
         .chars()
-        .filter(|c| !c.is_whitespace() && !matches!(c, 'R' | 'r' | '%' | '\u{a0}'))
+        .filter(|character| {
+            !character.is_whitespace() && !matches!(character, 'R' | 'r' | '%' | '\u{a0}')
+        })
         .collect();
     let normal = match kind {
         FieldKind::Money => cleaned.replace(',', ""),

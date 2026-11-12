@@ -12,9 +12,9 @@ use wasm_bindgen::JsCast;
 
 fn main() {
     let Some(root) = web_sys::window()
-        .and_then(|w| w.document())
-        .and_then(|d| d.get_element_by_id("app"))
-        .and_then(|el| el.dyn_into::<web_sys::HtmlElement>().ok())
+        .and_then(|window| window.document())
+        .and_then(|document| document.get_element_by_id("app"))
+        .and_then(|element| element.dyn_into::<web_sys::HtmlElement>().ok())
     else {
         return;
     };

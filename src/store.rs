@@ -35,7 +35,7 @@ pub fn load_inputs() -> (Inputs, Loaded) {
         return (Inputs::default(), Loaded::Fresh);
     };
     match serde_json::from_str::<Inputs>(&raw) {
-        Ok(i) if validate(&i).is_empty() => (i, Loaded::Ok),
+        Ok(inputs) if validate(&inputs).is_empty() => (inputs, Loaded::Ok),
         _ => (Inputs::default(), Loaded::Repaired),
     }
 }
@@ -61,7 +61,9 @@ pub fn load_scenarios() -> (Vec<Scenario>, Loaded) {
             s.name = clean_name(&s.name);
             if !s.name.is_empty()
                 && validate(&s.inputs).is_empty()
-                && !kept.iter().any(|k| k.name == s.name)
+                && !kept
+                    .iter()
+                    .any(|kept_scenario| kept_scenario.name == s.name)
                 && kept.len() < MAX_SCENARIOS
             {
                 kept.push(s);
