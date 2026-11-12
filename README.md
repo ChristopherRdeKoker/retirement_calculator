@@ -9,7 +9,16 @@ A small retirement calculator for South Africans. Enter your age, savings and ex
 - [Trunk](https://trunkrs.dev) for building and bundling
 - Hand-built inline SVG chart, plain CSS with light and dark themes, `localStorage` for persistence
 
-The maths lives in `src/calc.rs`, a plain Rust module with no web dependencies.
+## Layout
+
+- `src/calc/`: the maths. `inputs.rs` holds the inputs and their validation, `projection.rs` the month-by-month simulation and the sustainable-income search. No web dependencies.
+- `src/format.rs`: rand formatting.
+- `src/form.rs`: the input fields, parsing what people type, and the form state.
+- `src/outcome.rs`: a projection plus the sustainable income, and the "lasts until" wording.
+- `src/scenarios.rs`: saved-scenario rules (naming, updating, the limit of three).
+- `src/store.rs`: reading and writing `localStorage`.
+- `src/components/`: the Leptos components. `src/app.rs` wires them together.
+- `src/chart.rs` and `src/chart/`: the SVG chart component, its geometry and its drawing layers.
 
 ## Model
 
@@ -30,6 +39,15 @@ RUSTFLAGS="--remap-path-prefix=$HOME=~" trunk build --release --public-url /apps
 ```
 
 `trunk serve` runs a local development server with live reload; the app is served under the `public_url` set in `Trunk.toml`.
+
+The browser tests in `tests/e2e/` need Node and Playwright with Chromium. Build the release version first, then serve `dist/` with the production CSP and run them:
+
+```sh
+python3 tests/e2e/serve.py dist 8731 &
+PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tests/e2e/e2e.mjs
+```
+
+`PLAYWRIGHT_MODULE` defaults to `playwright`, `PORT` to 8731, and screenshots go to `tests/e2e/screenshots/` unless `SHOTS_DIR` is set.
 
 ## Deploying
 
