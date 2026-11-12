@@ -49,7 +49,7 @@ pub fn format_compact(value: f64) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::calc::MAX_MONEY;
+    use crate::calc::inputs::MAX_MONEY;
 
     #[test]
     fn group_thousands_inserts_the_separator_every_three_digits() {

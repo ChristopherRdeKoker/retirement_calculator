@@ -255,7 +255,7 @@ pub fn App() -> impl IntoView {
             o.projection
                 .points
                 .iter()
-                .filter(|p| p.age <= (o.inputs.life_expectancy + 5).min(100))
+                .filter(|p| p.age <= o.inputs.display_end_age())
                 .map(|p| {
                     view! {
                         <tr>
