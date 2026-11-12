@@ -319,7 +319,7 @@ for (const scheme of ["light", "dark"]) {
   const page = await ctx.newPage();
   const consoleErrors = [];
   page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text()); });
-  await page.route(URL, async (route) => {
+  await page.route(APP_URL, async (route) => {
     const response = await route.fetch();
     const body = (await response.text()).replace('<div id="app">', '<div id="not-app">');
     await route.fulfill({ response, body });
