@@ -217,8 +217,8 @@ async function headline(page) { return (await page.locator("#summary-title").tex
   await page.goto(APP_URL);
   await page.waitForSelector("#summary-title");
   const h0 = await headline(page);
-  const toggles = page.locator(".help-toggle");
-  check("help toggle on every field", (await toggles.count()) === 10 && (await page.locator(".field").count()) === 10);
+  const toggles = page.locator(".group .help-toggle");
+  check("help toggle on every field", (await toggles.count()) === 10 && (await page.locator(".group .field").count()) === 10);
   const wiring = await toggles.evaluateAll((els) => els.map((el) => {
     const help = document.getElementById(el.getAttribute("aria-controls") || "");
     const input = el.closest(".field").querySelector("input");
@@ -311,6 +311,104 @@ for (const scheme of ["light", "dark"]) {
   await page.screenshot({ path: `${SHOTS}/help/phone-390x844-dark.png` });
   const v = await page.evaluate(() => window.__csp);
   check("no CSP violations (help phone dark)", v.length === 0, JSON.stringify(v));
+  await ctx.close();
+}
+
+{
+  const DEPOSIT_SHOTS = `${SHOTS}/deposits`;
+  mkdirSync(DEPOSIT_SHOTS, { recursive: true });
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: "light", hasTouch: true, isMobile: true });
+  const page = await ctx.newPage();
+  await page.addInitScript(csp);
+  watch(page, "deposits-phone", errors);
+  await page.goto(APP_URL);
+  await page.waitForSelector("#summary-title");
+  const pot = () => page.locator(".stat-value").first().textContent();
+  const pot0 = await pot();
+  const toggle = page.getByRole("button", { name: "Deposit at start of year", exact: true });
+  check("deposit section titled and closed by default", (await toggle.textContent()).trim() === "Deposit at start of year" && (await toggle.getAttribute("aria-expanded")) === "false" && (await page.locator("#deposits-body").isHidden()));
+  const sectionHelp = page.getByRole("button", { name: "About Deposit at start of year" });
+  await sectionHelp.tap();
+  check("deposit section help opens", (await sectionHelp.getAttribute("aria-expanded")) === "true" && (await page.locator("#deposits-help").isVisible()) && (await page.locator("#deposits-help").textContent()).includes("start of the year"));
+  await sectionHelp.tap();
+  await toggle.tap();
+  check("deposit section opens with no rows", (await toggle.getAttribute("aria-expanded")) === "true" && (await page.locator(".deposit-row").count()) === 0 && (await page.getByRole("button", { name: "Add deposit" }).isVisible()));
+  await page.getByRole("button", { name: "Add deposit" }).tap();
+  const year = page.locator(".deposit-row input[name$='-year']").first();
+  const amount = page.locator(".deposit-row input[name$='-amount']").first();
+  check("new deposit row starts in year 1 with no amount, blocking the result", (await page.locator(".deposit-row").count()) === 1 && (await year.inputValue()) === "1" && (await headline(page)) === "Check your inputs" && (await amount.getAttribute("aria-invalid")) === "true");
+  await amount.tap();
+  await amount.pressSequentially("100000");
+  check("typing in a deposit keeps focus", await amount.evaluate((el) => el === document.activeElement) && (await amount.inputValue()) === "100000");
+  await amount.blur();
+  await year.fill("3");
+  await year.blur();
+  const pot1 = await pot();
+  check("deposit changes the result", /^Your savings last/.test(await headline(page)) && pot1 !== pot0, `${pot0} -> ${pot1}`);
+  check("deposit amount regrouped on blur", (await amount.inputValue()) === "100 000");
+  const yearHelp = page.getByRole("button", { name: "About deposit year" });
+  await yearHelp.tap();
+  const yearHelpId = await yearHelp.getAttribute("aria-controls");
+  check("deposit year help opens", (await yearHelp.getAttribute("aria-expanded")) === "true" && (await page.locator(`#${yearHelpId}`).isVisible()) && (await page.locator(".help:not([hidden])").count()) === 1);
+  const amountHelp = page.getByRole("button", { name: "About deposit amount" });
+  await amountHelp.tap();
+  check("deposit amount help opens and closes the year help", (await amountHelp.getAttribute("aria-expanded")) === "true" && (await yearHelp.getAttribute("aria-expanded")) === "false");
+  await amountHelp.tap();
+  for (const bad of ["0", "31"]) {
+    await year.fill(bad);
+    await year.blur();
+    const errorId = `${await year.getAttribute("id")}-error`;
+    check(`deposit year ${bad} is rejected`, (await headline(page)) === "Check your inputs" && (await page.locator(`#${errorId}`).textContent()).includes("Deposit 1: the year"));
+  }
+  await year.fill("30");
+  await year.blur();
+  check("deposit in the last year before retirement is allowed", /^Your savings last/.test(await headline(page)));
+  await year.fill("3");
+  await year.blur();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  check("no horizontal scroll at 390 with a deposit row", overflow <= 0, `overflow=${overflow}`);
+  await page.locator(".deposits").scrollIntoViewIfNeeded();
+  await page.locator(".deposits").screenshot({ path: `${DEPOSIT_SHOTS}/phone-390-section.png` });
+  await page.screenshot({ path: `${DEPOSIT_SHOTS}/phone-390x844.png` });
+
+  await page.locator("#scenario-name").fill("With deposit");
+  await page.locator(".save-row button").click();
+  check("compare table shows deposits", (await page.locator(".compare tbody tr", { hasText: "Deposits" }).locator("td").first().textContent()).trim() !== "None");
+  await page.reload();
+  await page.waitForSelector("#summary-title");
+  check("deposit kept after reload and section opens", (await toggle.getAttribute("aria-expanded")) === "true" && (await page.locator(".deposit-row").count()) === 1 && (await pot()) === pot1);
+  await page.getByRole("button", { name: "Reset" }).tap();
+  check("reset clears deposits and closes the section", (await page.locator(".deposit-row").count()) === 0 && (await toggle.getAttribute("aria-expanded")) === "false" && (await pot()) === pot0);
+  await page.getByRole("button", { name: "Load With deposit" }).tap();
+  check("loading a scenario restores its deposit", (await page.locator(".deposit-row").count()) === 1 && (await pot()) === pot1);
+  await page.getByRole("button", { name: "Remove deposit 1" }).tap();
+  check("remove deposit restores the result", (await page.locator(".deposit-row").count()) === 0 && (await pot()) === pot0);
+  const v = await page.evaluate(() => window.__csp);
+  check("no CSP violations (deposits phone)", v.length === 0, JSON.stringify(v));
+  await ctx.close();
+}
+
+{
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: "light" });
+  const page = await ctx.newPage();
+  await page.addInitScript(csp);
+  watch(page, "deposits-desktop", errors);
+  await page.goto(APP_URL);
+  await page.waitForSelector("#summary-title");
+  await page.getByRole("button", { name: "Deposit at start of year", exact: true }).click();
+  await page.getByRole("button", { name: "Add deposit" }).click();
+  await page.locator(".deposit-row input[name$='-year']").first().fill("3");
+  await page.locator(".deposit-row input[name$='-amount']").first().fill("100000");
+  await page.locator(".deposit-row input[name$='-amount']").first().blur();
+  await page.getByRole("button", { name: "About deposit year" }).click();
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  check("no horizontal scroll at 1440 with a deposit row", overflow <= 0, `overflow=${overflow}`);
+  await page.locator(".deposits").evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${SHOTS}/deposits/desktop-1440x900.png` });
+  const v = await page.evaluate(() => window.__csp);
+  check("no CSP violations (deposits desktop)", v.length === 0, JSON.stringify(v));
   await ctx.close();
 }
 
