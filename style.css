@@ -464,6 +464,7 @@ tbody th {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  justify-content: space-between;
   margin-bottom: 5px;
 }
 
@@ -542,6 +543,7 @@ tbody th {
   display: flex;
   align-items: center;
   gap: 0.5rem;
+  justify-content: space-between;
 }
 
 .disclosure {
