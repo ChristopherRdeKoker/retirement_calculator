@@ -1,40 +1,11 @@
-use crate::calc::{project, sustainable_income, Field, Inputs, Projection};
+use crate::calc::{Field, Inputs};
 use crate::chart::{Chart, ChartData};
+use crate::components::summary::Summary;
 use crate::form::{field_def, group_digits, parse, FieldKind, FormText, FIELD_GROUPS};
 use crate::format::{format_compact, format_rand};
+use crate::outcome::{headline, lasts_label, lasts_short, sustainability_sentence, Outcome};
 use crate::store::{self, Loaded, Scenario, MAX_NAME, MAX_SCENARIOS};
 use leptos::prelude::*;
-
-#[derive(Clone, PartialEq)]
-struct Outcome {
-    inputs: Inputs,
-    projection: Projection,
-    affordable: Option<f64>,
-}
-
-fn outcome(inputs: Inputs) -> Option<Outcome> {
-    let projection = project(&inputs).ok()?;
-    let affordable = sustainable_income(&inputs);
-    Some(Outcome {
-        inputs,
-        projection,
-        affordable,
-    })
-}
-
-fn headline(o: &Outcome) -> String {
-    match o.projection.lasts_until() {
-        Some(age) => format!("Your savings last until age {age}"),
-        None => "Your savings last beyond age 100".to_string(),
-    }
-}
-
-fn lasts_text(p: &Projection) -> String {
-    match p.lasts_until() {
-        Some(age) => format!("Age {age}"),
-        None => "Beyond 100".to_string(),
-    }
-}
 
 #[component]
 pub fn App() -> impl IntoView {
@@ -45,7 +16,7 @@ pub fn App() -> impl IntoView {
 
     let text = FormText::new(&initial);
     let parsed = Memo::new(move |_| text.read());
-    let result = Memo::new(move |_| parsed.get().ok().and_then(outcome));
+    let result = Memo::new(move |_| parsed.get().ok().and_then(Outcome::new));
     let scenarios = RwSignal::new(saved);
     let name = RwSignal::new(String::new());
     let notice = RwSignal::new(if repaired {
@@ -74,14 +45,10 @@ pub fn App() -> impl IntoView {
     let has_chart = Memo::new(move |_| chart_data.with(|d| d.is_some()));
 
     let announcement = move || match result.get() {
-        Some(o) => format!(
+        Some(outcome) => format!(
             "{}. {}",
-            headline(&o),
-            if o.projection.sustainable {
-                "Your desired income is sustainable."
-            } else {
-                "Your desired income is not sustainable."
-            }
+            headline(&outcome.projection),
+            sustainability_sentence(&outcome.projection)
         ),
         None => "Check your inputs.".to_string(),
     };
@@ -156,98 +123,6 @@ pub fn App() -> impl IntoView {
     let reset = move |_| {
         text.fill(&Inputs::default());
         notice.set("Inputs reset to the defaults.".to_string());
-    };
-
-    let summary = move || match result.get() {
-        None => {
-            let issues = parsed.get().err().unwrap_or_default();
-            view! {
-                <section class="card summary summary-invalid" aria-labelledby="summary-title">
-                    <h2 id="summary-title" class="headline">"Check your inputs"</h2>
-                    <ul class="issues">
-                        {issues.into_iter().map(|i| view! { <li>{i.message}</li> }).collect_view()}
-                    </ul>
-                </section>
-            }
-            .into_any()
-        }
-        Some(o) => {
-            let p = o.projection.clone();
-            let i = o.inputs;
-            let verdict = if p.sustainable {
-                view! {
-                    <p class="verdict verdict-good">
-                        <span class="badge" aria-hidden="true">"✓"</span>
-                        <span>
-                            <strong>"Sustainable. "</strong>
-                            {format!(
-                                "An income of {} a month in today's money lasts past your planning age of {}.",
-                                format_rand(i.desired_income),
-                                i.life_expectancy
-                            )}
-                        </span>
-                    </p>
-                }
-                .into_any()
-            } else {
-                let short = p
-                    .lasts_until()
-                    .map(|a| i.life_expectancy.saturating_sub(a))
-                    .unwrap_or(0);
-                let afford = o
-                    .affordable
-                    .map(|a| {
-                        format!(
-                            " To last until {}, plan on about {} a month in today's money.",
-                            i.life_expectancy,
-                            format_rand((a / 100.0).floor() * 100.0)
-                        )
-                    })
-                    .unwrap_or_default();
-                view! {
-                    <p class="verdict verdict-bad">
-                        <span class="badge" aria-hidden="true">"!"</span>
-                        <span>
-                            <strong>"Not sustainable. "</strong>
-                            {format!(
-                                "An income of {} a month runs out {} {} before age {}.{}",
-                                format_rand(i.desired_income),
-                                short,
-                                if short == 1 { "year" } else { "years" },
-                                i.life_expectancy,
-                                afford
-                            )}
-                        </span>
-                    </p>
-                }
-                .into_any()
-            };
-            view! {
-                <section class="card summary" aria-labelledby="summary-title">
-                    <p class="eyebrow">"Your projection"</p>
-                    <h2 id="summary-title" class="headline">{headline(&o)}</h2>
-                    {verdict}
-                    <dl class="stats">
-                        <div class="stat">
-                            <dt>{format!("Pot at age {}", i.retire_age)}</dt>
-                            <dd class="stat-value">{format_rand(p.pot_nominal)}</dd>
-                            <dd class="stat-note">"Future rand"</dd>
-                        </div>
-                        <div class="stat">
-                            <dt>"In today's money"</dt>
-                            <dd class="stat-value">{format_rand(p.pot_real)}</dd>
-                            <dd class="stat-note">{format!("After {}% inflation a year", i.inflation)}</dd>
-                        </div>
-                        <div class="stat">
-                            <dt>"First monthly withdrawal"</dt>
-                            <dd class="stat-value">{format_rand(p.first_withdrawal)}</dd>
-                            <dd class="stat-note">{format!("{} in today's money", format_rand(i.desired_income))}</dd>
-                        </div>
-                    </dl>
-                </section>
-            }
-            .into_any()
-        }
     };
 
     let table_rows = move || {
@@ -351,13 +226,13 @@ pub fn App() -> impl IntoView {
                 let to_delete = s.name.clone();
                 let name_for_load = s.name.clone();
                 let name_for_delete = s.name.clone();
-                let detail = outcome(s.inputs)
+                let detail = Outcome::new(s.inputs)
                     .map(|o| {
                         format!(
                             "Retire at {} · {} a month · {}",
                             s.inputs.retire_age,
                             format_rand(s.inputs.desired_income),
-                            lasts_text(&o.projection).to_lowercase()
+                            lasts_label(&o.projection).to_lowercase()
                         )
                     })
                     .unwrap_or_default();
@@ -401,7 +276,7 @@ pub fn App() -> impl IntoView {
         }
         let outcomes: Vec<(String, Option<Outcome>)> = list
             .iter()
-            .map(|s| (s.name.clone(), outcome(s.inputs)))
+            .map(|s| (s.name.clone(), Outcome::new(s.inputs)))
             .collect();
         type Row = (&'static str, fn(&Outcome) -> String);
         let rows: [Row; 6] = [
@@ -413,10 +288,7 @@ pub fn App() -> impl IntoView {
             ("Income (today)", |o| {
                 format_compact(o.inputs.desired_income)
             }),
-            ("Lasts until", |o| match o.projection.lasts_until() {
-                Some(a) => a.to_string(),
-                None => "100+".to_string(),
-            }),
+            ("Lasts until", |o| lasts_short(&o.projection)),
             ("Sustainable", |o| {
                 if o.projection.sustainable {
                     "Yes".to_string()
@@ -470,7 +342,7 @@ pub fn App() -> impl IntoView {
             </header>
             <main class="layout">
                 <p class="visually-hidden" role="status" aria-live="polite">{announcement}</p>
-                <div class="area-summary">{summary}</div>
+                <div class="area-summary"><Summary result parsed /></div>
                 <section class="card area-chart" aria-labelledby="chart-title">
                     <div class="card-head">
                         <h2 id="chart-title">"Savings by age"</h2>

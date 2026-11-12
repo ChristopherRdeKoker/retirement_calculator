@@ -1,8 +1,10 @@
 mod app;
 mod calc;
 mod chart;
+mod components;
 mod form;
 mod format;
+mod outcome;
 mod store;
 
 use wasm_bindgen::JsCast;
