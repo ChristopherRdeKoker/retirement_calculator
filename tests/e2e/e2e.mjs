@@ -336,7 +336,11 @@ for (const scheme of ["light", "dark"]) {
   await page.getByRole("button", { name: "Add deposit" }).tap();
   const year = page.locator(".deposit-row input[name$='-year']").first();
   const amount = page.locator(".deposit-row input[name$='-amount']").first();
-  check("new deposit row starts in year 1 with no amount, blocking the result", (await page.locator(".deposit-row").count()) === 1 && (await year.inputValue()) === "1" && (await headline(page)) === "Check your inputs" && (await amount.getAttribute("aria-invalid")) === "true");
+  check("new deposit row starts in year 1 with no amount, blocking the result", (await page.locator(".deposit-row").count()) === 1 && (await year.inputValue()) === "1" && (await headline(page)) === "Check your inputs");
+  check("new deposit row shows no error before the amount is touched", (await amount.getAttribute("aria-invalid")) === "false" && (await page.locator(".deposit-row .error").count()) === 0);
+  await amount.focus();
+  await amount.blur();
+  check("leaving the deposit amount empty shows its error", (await amount.getAttribute("aria-invalid")) === "true" && (await page.locator(".deposit-row .error").textContent()).includes("Deposit 1: enter the amount"));
   await amount.tap();
   await amount.pressSequentially("100000");
   check("typing in a deposit keeps focus", await amount.evaluate((el) => el === document.activeElement) && (await amount.inputValue()) === "100000");

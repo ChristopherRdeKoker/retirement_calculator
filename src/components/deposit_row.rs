@@ -71,7 +71,11 @@ fn DepositInput(
     let Adornment {
         prefix, input_mode, ..
     } = adornment(kind);
+    let touched = RwSignal::new(false);
     let issue = move || {
+        if !touched.get() && text.with(|value| value.trim().is_empty()) {
+            return None;
+        }
         let wanted = subject(part, position.get());
         parsed
             .get()
@@ -114,6 +118,7 @@ fn DepositInput(
                     aria-describedby=described_by
                     prop:value=move || text.get()
                     on:input=move |event| text.set(event_target_value(&event))
+                    on:blur=move |_| touched.set(true)
                     on:change=move |_| {
                         if kind == FieldKind::Money {
                             regroup_money(text);
