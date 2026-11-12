@@ -1,11 +1,14 @@
+use super::deposit_section::DepositSection;
 use super::number_field::NumberField;
 use crate::calc::{Field, Inputs, Issue};
-use crate::form::{FormText, FIELD_GROUPS};
+use crate::form::{FormText, HelpKey, FIELD_GROUPS};
 use leptos::prelude::*;
+
+const DEPOSITS_AFTER: Field = Field::ContributionIncrease;
 
 #[component]
 pub fn InputForm(text: FormText, parsed: Memo<Result<Inputs, Vec<Issue>>>) -> impl IntoView {
-    let open_help = RwSignal::new(None::<Field>);
+    let open_help = RwSignal::new(None::<HelpKey>);
     let handle = window_event_listener(leptos::ev::keydown, move |event| {
         if event.key() == "Escape" && open_help.get_untracked().is_some() {
             open_help.set(None);
@@ -25,6 +28,7 @@ pub fn InputForm(text: FormText, parsed: Memo<Result<Inputs, Vec<Issue>>>) -> im
                             .collect_view()}
                     </div>
                 </fieldset>
+                {(fields.last() == Some(&DEPOSITS_AFTER)).then(|| view! { <DepositSection text parsed open_help /> })}
             }
         })
         .collect_view();

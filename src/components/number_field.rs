@@ -1,14 +1,15 @@
+use super::help::{HelpText, HelpToggle};
 use crate::calc::{Field, Inputs, Issue};
-use crate::form::{field_def, group_digits, parse, FieldKind};
+use crate::form::{field_def, group_digits, parse, FieldKind, HelpKey};
 use leptos::prelude::*;
 
-struct Adornment {
-    prefix: Option<&'static str>,
-    suffix: Option<&'static str>,
-    input_mode: &'static str,
+pub struct Adornment {
+    pub prefix: Option<&'static str>,
+    pub suffix: Option<&'static str>,
+    pub input_mode: &'static str,
 }
 
-fn adornment(kind: FieldKind) -> Adornment {
+pub fn adornment(kind: FieldKind) -> Adornment {
     match kind {
         FieldKind::Age => Adornment {
             prefix: None,
@@ -28,7 +29,7 @@ fn adornment(kind: FieldKind) -> Adornment {
     }
 }
 
-fn regroup_money(text: RwSignal<String>) {
+pub fn regroup_money(text: RwSignal<String>) {
     if let Some(value) = parse(FieldKind::Money, &text.get_untracked()) {
         if value >= 0.0 {
             text.set(group_digits(value));
@@ -41,7 +42,7 @@ pub fn NumberField(
     field: Field,
     text: RwSignal<String>,
     parsed: Memo<Result<Inputs, Vec<Issue>>>,
-    open_help: RwSignal<Option<Field>>,
+    open_help: RwSignal<Option<HelpKey>>,
 ) -> impl IntoView {
     let def = field_def(field);
     let kind = def.kind;
@@ -49,16 +50,8 @@ pub fn NumberField(
     let hint_id = format!("{id}-hint");
     let error_id = format!("{id}-error");
     let help_id = format!("{id}-help");
-    let help_open = move || open_help.get() == Some(field);
-    let toggle_help = move |_| {
-        open_help.update(|open| {
-            *open = if *open == Some(field) {
-                None
-            } else {
-                Some(field)
-            }
-        })
-    };
+    let help_key = HelpKey::Field(field);
+    let help_open = move || open_help.get() == Some(help_key);
     let has_hint = !def.hint.is_empty();
     let Adornment {
         prefix,
@@ -89,18 +82,9 @@ pub fn NumberField(
         <div class="field" class:field-invalid=move || issue().is_some()>
             <div class="field-head">
                 <label for=id>{def.label}</label>
-                <button
-                    type="button"
-                    class="help-toggle"
-                    aria-label=format!("About {}", def.label)
-                    aria-controls=help_id.clone()
-                    aria-expanded=move || if help_open() { "true" } else { "false" }
-                    on:click=toggle_help
-                >
-                    "?"
-                </button>
+                <HelpToggle key=help_key label=def.label.to_string() help_id=help_id.clone() open_help />
             </div>
-            <p class="help" id=help_id hidden=move || !help_open()>{def.help}</p>
+            <HelpText key=help_key help_id text=def.help open_help />
             <div class="control">
                 {prefix.map(|symbol| view! { <span class="affix affix-pre" aria-hidden="true">{symbol}</span> })}
                 <input

@@ -1,4 +1,7 @@
 pub mod compare_table;
+pub mod deposit_row;
+pub mod deposit_section;
+pub mod help;
 pub mod input_form;
 pub mod number_field;
 pub mod projection_table;

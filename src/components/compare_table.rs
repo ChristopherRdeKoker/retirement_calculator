@@ -37,15 +37,27 @@ fn sustainable_cell(outcome: &Outcome) -> Cell {
     }
 }
 
+fn deposits_cell(outcome: &Outcome) -> Cell {
+    let deposits = &outcome.inputs.deposits;
+    let total: f64 = deposits.iter().map(|deposit| deposit.amount).sum();
+    let text = if deposits.is_empty() {
+        "None".to_string()
+    } else {
+        format_compact(total)
+    };
+    plain(text)
+}
+
 type Row = (&'static str, fn(&Outcome) -> Cell);
 
-const ROWS: [Row; 6] = [
+const ROWS: [Row; 7] = [
     ("Retire at", |outcome| {
         plain(outcome.inputs.retire_age.to_string())
     }),
     ("Saving / month", |outcome| {
         plain(format_compact(outcome.inputs.monthly_contribution))
     }),
+    ("Deposits", deposits_cell),
     ("Pot (today)", |outcome| {
         plain(format_compact(outcome.projection.pot_real))
     }),
@@ -88,7 +100,7 @@ fn table(outcomes: Vec<ScenarioOutcome>) -> AnyView {
         })
         .collect_view();
     view! {
-        <p class="compare-note">{format!("Amounts in today's money. “{MAX_AGE}+” means the savings outlast age {MAX_AGE}.")}</p>
+        <p class="compare-note">{format!("Amounts in today's money, except deposits, which are the rand you pay in. “{MAX_AGE}+” means the savings outlast age {MAX_AGE}.")}</p>
         <div class="table-scroll" tabindex="0" role="region" aria-label="Scenario comparison">
             <table class="compare">
                 <thead>
