@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="en-ZA">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="description" content="A retirement calculator for South Africans: see how long your savings last, in rand and in today's money.">
+<meta name="color-scheme" content="light dark">
+<title>Retirement Calculator</title>
+<base data-trunk-public-url>
+<link data-trunk rel="rust" data-wasm-opt="z" data-wasm-opt-params="--enable-bulk-memory --enable-nontrapping-float-to-int --enable-sign-ext --enable-reference-types --enable-multivalue">
+<link data-trunk rel="css" href="style.css">
+<link data-trunk rel="icon" href="icon.svg">
+<link data-trunk rel="copy-file" href="loader.js">
+<script type="module" src="loader.js"></script>
+</head>
+<body>
+<div id="app"><p class="loading">Loading calculator…</p></div>
+<noscript><p class="load-error">This calculator needs JavaScript and WebAssembly.</p></noscript>
+</body>
+</html>

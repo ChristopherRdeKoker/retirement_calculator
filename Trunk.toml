@@ -1,0 +1,11 @@
+[build]
+target = "index.html"
+dist = "dist"
+public_url = "/apps/retirement/"
+filehash = false
+inject_scripts = false
+
+[[hooks]]
+stage = "post_build"
+command = "sh"
+command_arguments = ["-c", "sed -i '/data-trunk-id/d' \"$TRUNK_STAGING_DIR/index.html\""]
