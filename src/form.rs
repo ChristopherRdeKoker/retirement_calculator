@@ -1,5 +1,8 @@
+pub mod deposits;
+
 use crate::calc::{validate, Field, Inputs, Issue, Subject};
 use crate::format::group_thousands;
+use deposits::{read_deposits, DepositText, NEW_ROW_YEAR};
 use leptos::prelude::*;
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -7,6 +10,14 @@ pub enum FieldKind {
     Age,
     Money,
     Percent,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum HelpKey {
+    Field(Field),
+    Deposits,
+    DepositYear(usize),
+    DepositAmount(usize),
 }
 
 pub struct FieldDef {
@@ -160,7 +171,10 @@ fn unreadable(field: Field) -> Issue {
     }
 }
 
-pub fn read_form(text_of: impl Fn(Field) -> String) -> Result<Inputs, Vec<Issue>> {
+pub fn read_form(
+    text_of: impl Fn(Field) -> String,
+    deposit_rows: &[DepositText],
+) -> Result<Inputs, Vec<Issue>> {
     let mut inputs = Inputs::default();
     let mut issues = Vec::new();
     for field in Field::ALL {
@@ -168,6 +182,10 @@ pub fn read_form(text_of: impl Fn(Field) -> String) -> Result<Inputs, Vec<Issue>
             Some(value) => inputs.set_value(field, value),
             None => issues.push(unreadable(field)),
         }
+    }
+    match read_deposits(deposit_rows) {
+        Ok(deposits) => inputs.deposits = deposits,
+        Err(mut unreadable_rows) => issues.append(&mut unreadable_rows),
     }
     if !issues.is_empty() {
         return Err(issues);
@@ -181,25 +199,94 @@ pub fn read_form(text_of: impl Fn(Field) -> String) -> Result<Inputs, Vec<Issue>
 }
 
 #[derive(Clone, Copy)]
-pub struct FormText([RwSignal<String>; Field::ALL.len()]);
+pub struct DepositRow {
+    pub key: usize,
+    pub year: RwSignal<String>,
+    pub amount: RwSignal<String>,
+}
+
+#[derive(Clone, Copy)]
+pub struct FormText {
+    fields: [RwSignal<String>; Field::ALL.len()],
+    deposits: RwSignal<Vec<DepositRow>>,
+    deposits_open: RwSignal<bool>,
+    next_key: StoredValue<usize>,
+}
 
 impl FormText {
     pub fn new(inputs: &Inputs) -> Self {
-        FormText(Field::ALL.map(|field| RwSignal::new(field_text(field, inputs))))
+        let text = FormText {
+            fields: Field::ALL.map(|field| RwSignal::new(field_text(field, inputs))),
+            deposits: RwSignal::new(Vec::new()),
+            deposits_open: RwSignal::new(!inputs.deposits.is_empty()),
+            next_key: StoredValue::new(0),
+        };
+        text.deposits.set(text.rows_for(inputs));
+        text
     }
 
     pub fn signal(self, field: Field) -> RwSignal<String> {
-        self.0[field.index()]
+        self.fields[field.index()]
+    }
+
+    pub fn deposits(self) -> RwSignal<Vec<DepositRow>> {
+        self.deposits
+    }
+
+    pub fn deposits_open(self) -> RwSignal<bool> {
+        self.deposits_open
+    }
+
+    fn row(self, text: DepositText) -> DepositRow {
+        let key = self.next_key.get_value();
+        self.next_key.set_value(key + 1);
+        DepositRow {
+            key,
+            year: RwSignal::new(text.year),
+            amount: RwSignal::new(text.amount),
+        }
+    }
+
+    fn rows_for(self, inputs: &Inputs) -> Vec<DepositRow> {
+        inputs
+            .deposits
+            .iter()
+            .map(|deposit| self.row(DepositText::of(deposit)))
+            .collect()
+    }
+
+    pub fn add_deposit(self) {
+        let row = self.row(DepositText {
+            year: NEW_ROW_YEAR.to_string(),
+            amount: String::new(),
+        });
+        self.deposits.update(|rows| rows.push(row));
+    }
+
+    pub fn remove_deposit(self, key: usize) {
+        self.deposits
+            .update(|rows| rows.retain(|row| row.key != key));
     }
 
     pub fn fill(self, inputs: &Inputs) {
         for field in Field::ALL {
             self.signal(field).set(field_text(field, inputs));
         }
+        self.deposits.set(self.rows_for(inputs));
+        self.deposits_open.set(!inputs.deposits.is_empty());
     }
 
     pub fn read(self) -> Result<Inputs, Vec<Issue>> {
-        read_form(|field| self.signal(field).get())
+        let rows: Vec<DepositText> = self
+            .deposits
+            .get()
+            .iter()
+            .map(|row| DepositText {
+                year: row.year.get(),
+                amount: row.amount.get(),
+            })
+            .collect();
+        read_form(|field| self.signal(field).get(), &rows)
     }
 }
 
@@ -310,8 +397,11 @@ mod tests {
             desired_income: 30_000.0,
             deposits: Vec::new(),
         };
-        assert_eq!(read_form(texts(&inputs)), Ok(inputs));
-        assert_eq!(read_form(texts(&Inputs::default())), Ok(Inputs::default()));
+        assert_eq!(read_form(texts(&inputs), &[]), Ok(inputs));
+        assert_eq!(
+            read_form(texts(&Inputs::default()), &[]),
+            Ok(Inputs::default())
+        );
     }
 
     #[test]
@@ -323,7 +413,7 @@ mod tests {
             _ => field_text(field, &defaults),
         };
         assert_eq!(
-            read_form(text_of),
+            read_form(text_of, &[]),
             Err(vec![
                 Issue {
                     subject: Subject::Field(Field::CurrentAge),
@@ -344,8 +434,54 @@ mod tests {
             Field::RetireAge => "30".to_string(),
             _ => field_text(field, &defaults),
         };
-        let issues = read_form(text_of).unwrap_err();
+        let issues = read_form(text_of, &[]).unwrap_err();
         assert_eq!(issues.len(), 1);
         assert_eq!(issues[0].subject, Subject::Field(Field::RetireAge));
+    }
+
+    #[test]
+    fn read_form_adds_deposit_rows_and_reports_them_after_fields() {
+        let defaults = Inputs::default();
+        let rows = [DepositText {
+            year: "3".to_string(),
+            amount: "R 100 000".to_string(),
+        }];
+        let read = read_form(texts(&defaults), &rows).unwrap();
+        assert_eq!(
+            read.deposits,
+            [crate::calc::Deposit {
+                year: 3,
+                amount: 100_000.0
+            }]
+        );
+        let bad_rows = [DepositText {
+            year: "3".to_string(),
+            amount: String::new(),
+        }];
+        let text_of = |field: Field| match field {
+            Field::Savings => String::new(),
+            _ => field_text(field, &defaults),
+        };
+        let subjects: Vec<Subject> = read_form(text_of, &bad_rows)
+            .unwrap_err()
+            .into_iter()
+            .map(|issue| issue.subject)
+            .collect();
+        assert_eq!(
+            subjects,
+            [Subject::Field(Field::Savings), Subject::DepositAmount(0)]
+        );
+    }
+
+    #[test]
+    fn read_form_blocks_a_deposit_after_retirement() {
+        let defaults = Inputs::default();
+        let rows = [DepositText {
+            year: "31".to_string(),
+            amount: "1 000".to_string(),
+        }];
+        let issues = read_form(texts(&defaults), &rows).unwrap_err();
+        assert_eq!(issues.len(), 1);
+        assert_eq!(issues[0].subject, Subject::DepositYear(0));
     }
 }
