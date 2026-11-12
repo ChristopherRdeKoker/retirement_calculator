@@ -1,7 +1,8 @@
-use crate::calc::{Field, Inputs};
-use crate::chart::{Chart, ChartData};
+use crate::calc::Inputs;
+use crate::components::input_form::InputForm;
+use crate::components::savings_card::SavingsCard;
 use crate::components::summary::Summary;
-use crate::form::{field_def, group_digits, parse, FieldKind, FormText, FIELD_GROUPS};
+use crate::form::FormText;
 use crate::format::{format_compact, format_rand};
 use crate::outcome::{headline, lasts_label, lasts_short, sustainability_sentence, Outcome};
 use crate::store::{self, Loaded, Scenario, MAX_NAME, MAX_SCENARIOS};
@@ -33,17 +34,6 @@ pub fn App() -> impl IntoView {
         }
     });
 
-    let chart_data = Memo::new(move |_| {
-        result.get().map(|o| ChartData {
-            points: o.projection.points.clone(),
-            retire_age: o.inputs.retire_age,
-            life_expectancy: o.inputs.life_expectancy,
-            depleted_at: o.projection.depleted_at,
-        })
-    });
-
-    let has_chart = Memo::new(move |_| chart_data.with(|d| d.is_some()));
-
     let announcement = move || match result.get() {
         Some(outcome) => format!(
             "{}. {}",
@@ -51,14 +41,6 @@ pub fn App() -> impl IntoView {
             sustainability_sentence(&outcome.projection)
         ),
         None => "Check your inputs.".to_string(),
-    };
-
-    let issue_for = move |field: Field| {
-        parsed
-            .get()
-            .err()
-            .and_then(|list| list.into_iter().find(|i| i.field == field))
-            .map(|i| i.message)
     };
 
     let load = move |s: Scenario| {
@@ -124,98 +106,6 @@ pub fn App() -> impl IntoView {
         text.fill(&Inputs::default());
         notice.set("Inputs reset to the defaults.".to_string());
     };
-
-    let table_rows = move || {
-        result.get().map(|o| {
-            o.projection
-                .points
-                .iter()
-                .filter(|p| p.age <= o.inputs.display_end_age())
-                .map(|p| {
-                    view! {
-                        <tr>
-                            <th scope="row">{p.age}</th>
-                            <td>{format_rand(p.real)}</td>
-                            <td>{format_rand(p.nominal)}</td>
-                        </tr>
-                    }
-                })
-                .collect_view()
-        })
-    };
-
-    let field_view = move |field: Field| {
-        let def = field_def(field);
-        let sig = text.signal(field);
-        let kind = def.kind;
-        let id = def.id;
-        let hint_id = format!("{id}-hint");
-        let err_id = format!("{id}-error");
-        let has_hint = !def.hint.is_empty();
-        let described = move || {
-            let mut ids = Vec::new();
-            if has_hint {
-                ids.push(format!("{id}-hint"));
-            }
-            if issue_for(field).is_some() {
-                ids.push(format!("{id}-error"));
-            }
-            ids.join(" ")
-        };
-        let (prefix, suffix, mode) = match kind {
-            FieldKind::Age => (None, Some("years"), "numeric"),
-            FieldKind::Money => (Some("R"), None, "decimal"),
-            FieldKind::Percent => (None, Some("%"), "decimal"),
-        };
-        view! {
-            <div class="field" class:field-invalid=move || issue_for(field).is_some()>
-                <label for=id>{def.label}</label>
-                <div class="control">
-                    {prefix.map(|p| view! { <span class="affix affix-pre" aria-hidden="true">{p}</span> })}
-                    <input
-                        id=id
-                        name=id
-                        type="text"
-                        inputmode=mode
-                        autocomplete="off"
-                        spellcheck="false"
-                        class:has-pre=prefix.is_some()
-                        class:has-suf=suffix.is_some()
-                        aria-invalid=move || if issue_for(field).is_some() { "true" } else { "false" }
-                        aria-describedby=described
-                        prop:value=move || sig.get()
-                        on:input=move |ev| sig.set(event_target_value(&ev))
-                        on:change=move |_| {
-                            if kind == FieldKind::Money {
-                                if let Some(v) = parse(kind, &sig.get_untracked()) {
-                                    if v >= 0.0 {
-                                        sig.set(group_digits(v));
-                                    }
-                                }
-                            }
-                        }
-                    />
-                    {suffix.map(|s| view! { <span class="affix affix-suf" aria-hidden="true">{s}</span> })}
-                </div>
-                {has_hint.then(|| view! { <p class="hint" id=hint_id>{def.hint}</p> })}
-                {move || issue_for(field).map(|m| view! { <p class="error" id=err_id.clone()>{m}</p> })}
-            </div>
-        }
-    };
-
-    let form = FIELD_GROUPS
-        .iter()
-        .map(|(title, members)| {
-            view! {
-                <fieldset class="group">
-                    <legend>{*title}</legend>
-                    <div class="group-fields">
-                        {members.iter().map(|field| field_view(*field)).collect_view()}
-                    </div>
-                </fieldset>
-            }
-        })
-        .collect_view();
 
     let scenario_list = move || {
         scenarios
@@ -343,40 +233,13 @@ pub fn App() -> impl IntoView {
             <main class="layout">
                 <p class="visually-hidden" role="status" aria-live="polite">{announcement}</p>
                 <div class="area-summary"><Summary result parsed /></div>
-                <section class="card area-chart" aria-labelledby="chart-title">
-                    <div class="card-head">
-                        <h2 id="chart-title">"Savings by age"</h2>
-                        <p class="card-sub">"Balance in today's money: growth while you save, then drawdown"</p>
-                    </div>
-                    {move || {
-                        if has_chart.get() {
-                            view! { <Chart data=chart_data /> }.into_any()
-                        } else {
-                            view! { <p class="empty">"The chart appears once the inputs are valid."</p> }.into_any()
-                        }
-                    }}
-                    <details class="data-table">
-                        <summary>"Show as a table"</summary>
-                        <div class="table-scroll" tabindex="0" role="region" aria-label="Savings by age table">
-                            <table>
-                                <thead>
-                                    <tr>
-                                        <th scope="col">"Age"</th>
-                                        <th scope="col">"Today's money"</th>
-                                        <th scope="col">"Future rand"</th>
-                                    </tr>
-                                </thead>
-                                <tbody>{table_rows}</tbody>
-                            </table>
-                        </div>
-                    </details>
-                </section>
+                <SavingsCard result />
                 <section class="card area-form" aria-labelledby="form-title">
                     <div class="card-head card-head-row">
                         <h2 id="form-title">"Your numbers"</h2>
                         <button type="button" class="btn btn-small btn-quiet" on:click=reset>"Reset"</button>
                     </div>
-                    <form class="inputs" novalidate on:submit=|ev| ev.prevent_default()>{form}</form>
+                    <InputForm text parsed />
                 </section>
                 <section class="card area-scenarios" aria-labelledby="scenarios-title">
                     <div class="card-head">

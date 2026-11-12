@@ -1,4 +1,4 @@
-use crate::calc::{Point, MAX_AGE};
+use crate::calc::Point;
 use crate::format::{format_compact, format_rand};
 use leptos::prelude::*;
 use wasm_bindgen::JsCast;
@@ -13,6 +13,7 @@ const PAD_B: f64 = 30.0;
 pub struct ChartData {
     pub points: Vec<Point>,
     pub retire_age: u32,
+    pub end_age: u32,
     pub life_expectancy: u32,
     pub depleted_at: Option<f64>,
 }
@@ -30,7 +31,7 @@ struct Geom {
 impl Geom {
     fn new(data: ChartData, width: f64) -> Self {
         let start = data.points.first().map(|p| p.age).unwrap_or(0);
-        let end = (data.life_expectancy + 5).min(MAX_AGE).max(start + 1);
+        let end = data.end_age.max(start + 1);
         let peak = data
             .points
             .iter()
@@ -340,6 +341,7 @@ pub fn Chart(data: Memo<Option<ChartData>>) -> impl IntoView {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::calc::MAX_AGE;
 
     fn data(life_expectancy: u32) -> ChartData {
         ChartData {
@@ -355,6 +357,7 @@ mod tests {
                 })
                 .collect(),
             retire_age: 60,
+            end_age: (life_expectancy + 5).min(MAX_AGE),
             life_expectancy,
             depleted_at: Some(61.0),
         }
@@ -380,7 +383,7 @@ mod tests {
     }
 
     #[test]
-    fn geometry_window_ends_five_years_after_life_expectancy() {
+    fn geometry_window_ends_at_the_end_age() {
         assert_eq!(Geom::new(data(80), 640.0).end, 85);
         assert_eq!(Geom::new(data(98), 640.0).end, MAX_AGE);
     }
