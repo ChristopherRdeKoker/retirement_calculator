@@ -1,7 +1,7 @@
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
 const { mkdirSync } = await import("node:fs");
 
-const URL = `http://127.0.0.1:${process.env.PORT ?? "8731"}/apps/retirement/`;
+const APP_URL = `http://127.0.0.1:${process.env.PORT ?? "8731"}/apps/retirement/`;
 const SHOTS = process.env.SHOTS_DIR ?? new URL("screenshots", import.meta.url).pathname;
 const problems = [];
 const checks = [];
@@ -35,7 +35,7 @@ async function headline(page) { return (await page.locator("#summary-title").tex
   const page = await ctx.newPage();
   await page.addInitScript(csp);
   watch(page, "phone", errors);
-  const resp = await page.goto(URL);
+  const resp = await page.goto(APP_URL);
   check("CSP header served", (resp.headers()["content-security-policy"] || "").includes("wasm-unsafe-eval"));
   await page.waitForSelector("#summary-title");
   const h0 = await headline(page);
@@ -107,7 +107,7 @@ async function headline(page) { return (await page.locator("#summary-title").tex
   const page = await ctx.newPage();
   await page.addInitScript(csp);
   watch(page, "corrupt", errors);
-  await page.goto(URL);
+  await page.goto(APP_URL);
   await page.evaluate(() => {
     localStorage.setItem("retire-calc.inputs.v1", "{not json");
     localStorage.setItem("retire-calc.scenarios.v1", JSON.stringify([{ name: "ok", inputs: { current_age: 500 } }, 7, null, "x"]));
@@ -141,7 +141,7 @@ async function headline(page) { return (await page.locator("#summary-title").tex
   const page = await ctx.newPage();
   await page.addInitScript(csp);
   watch(page, "desktop", errors);
-  await page.goto(URL);
+  await page.goto(APP_URL);
   await page.waitForSelector("#summary-title");
   for (const [n, r] of [["Retire at 60", "60"], ["Baseline", "65"], ["Work to 70", "70"]]) {
     await setField(page, "retire-age", r);
@@ -173,7 +173,7 @@ async function headline(page) { return (await page.locator("#summary-title").tex
   const page = await ctx.newPage();
   await page.addInitScript(csp);
   watch(page, "phone3", errors);
-  await page.goto(URL);
+  await page.goto(APP_URL);
   await page.waitForSelector("svg.chart");
   await page.evaluate(() => {
     window.__widths = [];
@@ -214,7 +214,7 @@ async function headline(page) { return (await page.locator("#summary-title").tex
   const page = await ctx.newPage();
   await page.addInitScript(csp);
   watch(page, "help-phone", errors);
-  await page.goto(URL);
+  await page.goto(APP_URL);
   await page.waitForSelector("#summary-title");
   const h0 = await headline(page);
   const toggles = page.locator(".help-toggle");
@@ -244,7 +244,7 @@ async function headline(page) { return (await page.locator("#summary-title").tex
   check("tapping another help closes the open one", (await openCount(page)) === 1 && (await rp.getAttribute("aria-expanded")) === "false" && (await inf.getAttribute("aria-expanded")) === "true" && (await page.locator("#return-pre-help").isHidden()));
   await inf.tap();
   check("tapping the same help closes it", (await openCount(page)) === 0 && (await states(page)).every((x) => x === "false"));
-  check("toggling help does not submit or change results", (await headline(page)) === h0 && new globalThis.URL(page.url()).search === "");
+  check("toggling help does not submit or change results", (await headline(page)) === h0 && new URL(page.url()).search === "");
   const v = await page.evaluate(() => window.__csp);
   check("no CSP violations (help phone)", v.length === 0, JSON.stringify(v));
   await ctx.close();
@@ -255,7 +255,7 @@ for (const scheme of ["light", "dark"]) {
   const page = await ctx.newPage();
   await page.addInitScript(csp);
   watch(page, `help-desktop-${scheme}`, errors);
-  await page.goto(URL);
+  await page.goto(APP_URL);
   await page.waitForSelector("#summary-title");
   const openCount = () => page.locator(".help:not([hidden])").count();
   const rp = page.getByRole("button", { name: "About Return before retirement" });
@@ -303,7 +303,7 @@ for (const scheme of ["light", "dark"]) {
   const page = await ctx.newPage();
   await page.addInitScript(csp);
   watch(page, "help-phone-dark", errors);
-  await page.goto(URL);
+  await page.goto(APP_URL);
   await page.waitForSelector("#summary-title");
   await page.getByRole("button", { name: "About Return before retirement" }).tap();
   await page.locator("#return-pre-help").scrollIntoViewIfNeeded();
@@ -324,7 +324,7 @@ for (const scheme of ["light", "dark"]) {
     const body = (await response.text()).replace('<div id="app">', '<div id="not-app">');
     await route.fulfill({ response, body });
   });
-  await page.goto(URL);
+  await page.goto(APP_URL);
   await page.waitForTimeout(1500);
   check("missing #app logs a console error", consoleErrors.some((e) => e.includes("no #app element")), JSON.stringify(consoleErrors));
   await ctx.close();
