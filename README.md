@@ -47,7 +47,7 @@ python3 tests/e2e/serve.py dist 8731 &
 PLAYWRIGHT_MODULE=/path/to/playwright/index.mjs node tests/e2e/e2e.mjs
 ```
 
-`PLAYWRIGHT_MODULE` defaults to `playwright`, `PORT` to 8731, and screenshots go to `tests/e2e/screenshots/` unless `SHOTS_DIR` is set.
+`PLAYWRIGHT_MODULE` defaults to `playwright`, `PORT` to 8731, and screenshots go to `tests/e2e/screenshots/` unless `SHOTS_DIR` is set (field-help screenshots go in its `help/` folder).
 
 ## Deploying
 

@@ -41,12 +41,24 @@ pub fn NumberField(
     field: Field,
     text: RwSignal<String>,
     parsed: Memo<Result<Inputs, Vec<Issue>>>,
+    open_help: RwSignal<Option<Field>>,
 ) -> impl IntoView {
     let def = field_def(field);
     let kind = def.kind;
     let id = def.id;
     let hint_id = format!("{id}-hint");
     let error_id = format!("{id}-error");
+    let help_id = format!("{id}-help");
+    let help_open = move || open_help.get() == Some(field);
+    let toggle_help = move |_| {
+        open_help.update(|open| {
+            *open = if *open == Some(field) {
+                None
+            } else {
+                Some(field)
+            }
+        })
+    };
     let has_hint = !def.hint.is_empty();
     let Adornment {
         prefix,
@@ -62,6 +74,9 @@ pub fn NumberField(
     };
     let described_by = move || {
         let mut ids = Vec::new();
+        if help_open() {
+            ids.push(format!("{id}-help"));
+        }
         if has_hint {
             ids.push(format!("{id}-hint"));
         }
@@ -72,7 +87,20 @@ pub fn NumberField(
     };
     view! {
         <div class="field" class:field-invalid=move || issue().is_some()>
-            <label for=id>{def.label}</label>
+            <div class="field-head">
+                <label for=id>{def.label}</label>
+                <button
+                    type="button"
+                    class="help-toggle"
+                    aria-label=format!("About {}", def.label)
+                    aria-controls=help_id.clone()
+                    aria-expanded=move || if help_open() { "true" } else { "false" }
+                    on:click=toggle_help
+                >
+                    "?"
+                </button>
+            </div>
+            <p class="help" id=help_id hidden=move || !help_open()>{def.help}</p>
             <div class="control">
                 {prefix.map(|symbol| view! { <span class="affix affix-pre" aria-hidden="true">{symbol}</span> })}
                 <input

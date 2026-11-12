@@ -13,6 +13,7 @@ pub struct FieldDef {
     pub id: &'static str,
     pub label: &'static str,
     pub hint: &'static str,
+    pub help: &'static str,
     pub kind: FieldKind,
 }
 
@@ -22,60 +23,70 @@ pub fn field_def(field: Field) -> FieldDef {
             id: "current-age",
             label: "Current age",
             hint: "",
+            help: "Your age today, in whole years. The younger you are, the more years your savings have to grow.",
             kind: FieldKind::Age,
         },
         Field::RetireAge => FieldDef {
             id: "retire-age",
             label: "Retirement age",
             hint: "",
+            help: "The age you plan to stop working and start living off your savings. Each extra year of work means one more year of saving and one less year of drawing.",
             kind: FieldKind::Age,
         },
         Field::LifeExpectancy => FieldDef {
             id: "life-expectancy",
             label: "Plan until age",
             hint: "Life expectancy, up to 100",
+            help: "How long your money needs to last. Plan for a long life, as running out at 85 is much worse than having some left over.",
             kind: FieldKind::Age,
         },
         Field::Savings => FieldDef {
             id: "savings",
             label: "Current savings",
             hint: "Retirement annuity, pension or provident fund",
+            help: "What your retirement savings are worth today, such as a retirement annuity, pension or provident fund. Leave out money you plan to spend before you retire.",
             kind: FieldKind::Money,
         },
         Field::MonthlyContribution => FieldDef {
             id: "contribution",
             label: "Monthly contribution",
             hint: "",
+            help: "How much goes into your retirement savings each month, including anything your employer adds for you.",
             kind: FieldKind::Money,
         },
         Field::ContributionIncrease => FieldDef {
             id: "increase",
             label: "Yearly contribution increase",
             hint: "In line with salary increases",
+            help: "How much you raise your monthly contribution each year, for example when you get a salary increase. Keeping pace with inflation keeps your saving steady in real terms.",
             kind: FieldKind::Percent,
         },
         Field::ReturnPre => FieldDef {
             id: "return-pre",
             label: "Return before retirement",
             hint: "Per year, before inflation",
+            help: "How much your savings grow each year before you retire, on average, before inflation. Balanced funds have often averaged around 8–10%; this is an assumption, not a promise.",
             kind: FieldKind::Percent,
         },
         Field::ReturnPost => FieldDef {
             id: "return-post",
             label: "Return after retirement",
             hint: "Usually lower: a more cautious mix",
+            help: "How much your savings grow each year once you have retired, before inflation. It is usually lower, because retirees often move to a more cautious mix with fewer shares.",
             kind: FieldKind::Percent,
         },
         Field::Inflation => FieldDef {
             id: "inflation",
             label: "Inflation",
             hint: "SARB target range is 3–6%",
+            help: "How fast prices rise each year, on average. It shrinks what your rand can buy, so the calculator uses it to show amounts in today's money.",
             kind: FieldKind::Percent,
         },
         Field::DesiredIncome => FieldDef {
             id: "income",
             label: "Monthly income in retirement",
             hint: "In today's money, before tax",
+            help: "The monthly income you want once you retire, before tax, in today's money. The calculator raises it with inflation each year so it keeps buying the same.",
             kind: FieldKind::Money,
         },
     }
@@ -204,6 +215,16 @@ mod tests {
             .flat_map(|(_, fields)| fields.iter().copied())
             .collect();
         assert_eq!(grouped, Field::ALL);
+    }
+
+    #[test]
+    fn every_field_has_short_help() {
+        for field in Field::ALL {
+            let help = field_def(field).help;
+            assert!(!help.trim().is_empty(), "{field:?} has no help");
+            assert!(help.len() <= 200, "{field:?} help is too long");
+            assert!(help.ends_with('.'), "{field:?} help is not a sentence");
+        }
     }
 
     #[test]

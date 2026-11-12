@@ -1,4 +1,5 @@
 const { chromium } = await import(process.env.PLAYWRIGHT_MODULE ?? "playwright");
+const { mkdirSync } = await import("node:fs");
 
 const URL = `http://127.0.0.1:${process.env.PORT ?? "8731"}/apps/retirement/`;
 const SHOTS = process.env.SHOTS_DIR ?? new URL("screenshots", import.meta.url).pathname;
@@ -200,6 +201,115 @@ async function headline(page) { return (await page.locator("#summary-title").tex
   await page.locator(".area-scenarios").screenshot({ path: `${SHOTS}/phone-390-three-scenarios.png` });
   const v = await page.evaluate(() => window.__csp);
   check("no CSP violations (phone3)", v.length === 0, JSON.stringify(v));
+  await ctx.close();
+}
+
+{
+  const HELP_SHOTS = `${SHOTS}/help`;
+  mkdirSync(HELP_SHOTS, { recursive: true });
+  const states = (page) => page.locator(".help-toggle").evaluateAll((els) => els.map((el) => el.getAttribute("aria-expanded")));
+  const openCount = (page) => page.locator(".help:not([hidden])").count();
+
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: "light", hasTouch: true, isMobile: true });
+  const page = await ctx.newPage();
+  await page.addInitScript(csp);
+  watch(page, "help-phone", errors);
+  await page.goto(URL);
+  await page.waitForSelector("#summary-title");
+  const h0 = await headline(page);
+  const toggles = page.locator(".help-toggle");
+  check("help toggle on every field", (await toggles.count()) === 10 && (await page.locator(".field").count()) === 10);
+  const wiring = await toggles.evaluateAll((els) => els.map((el) => {
+    const help = document.getElementById(el.getAttribute("aria-controls") || "");
+    const input = el.closest(".field").querySelector("input");
+    return { type: el.type, name: el.getAttribute("aria-label"), expanded: el.getAttribute("aria-expanded"), help: !!help, hidden: help?.hidden, text: (help?.textContent || "").trim().length, label: el.closest(".field").querySelector("label").textContent, input: input.id };
+  }));
+  check("help toggles wired: type=button, named, collapsed, controls a hidden non-empty panel", wiring.every((w) => w.type === "button" && w.name === `About ${w.label}` && w.expanded === "false" && w.help && w.hidden === true && w.text > 20), JSON.stringify(wiring.filter((w) => !(w.type === "button" && w.expanded === "false" && w.help && w.hidden))));
+
+  const rp = page.getByRole("button", { name: "About Return before retirement" });
+  await rp.tap();
+  check("tap opens help", (await rp.getAttribute("aria-expanded")) === "true" && (await page.locator("#return-pre-help").isVisible()) && (await page.locator("#return-pre-help").textContent()).includes("before inflation"));
+  check("open help described on input", ((await page.locator("#return-pre").getAttribute("aria-describedby")) || "").split(" ").includes("return-pre-help"));
+  check("closed help not described on input", !((await page.locator("#savings").getAttribute("aria-describedby")) || "").includes("savings-help"));
+  const helpBox = await page.locator("#return-pre-help").boundingBox();
+  check("open help fits the 390 screen", helpBox.x >= 0 && helpBox.x + helpBox.width <= 390, JSON.stringify(helpBox));
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  check("no horizontal scroll at 390 with help open", overflow <= 0, `overflow=${overflow}`);
+  await page.locator("#return-pre-help").scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 120));
+  await page.screenshot({ path: `${HELP_SHOTS}/phone-390x844-light.png` });
+
+  const inf = page.getByRole("button", { name: "About Inflation" });
+  await inf.tap();
+  check("tapping another help closes the open one", (await openCount(page)) === 1 && (await rp.getAttribute("aria-expanded")) === "false" && (await inf.getAttribute("aria-expanded")) === "true" && (await page.locator("#return-pre-help").isHidden()));
+  await inf.tap();
+  check("tapping the same help closes it", (await openCount(page)) === 0 && (await states(page)).every((x) => x === "false"));
+  check("toggling help does not submit or change results", (await headline(page)) === h0 && new globalThis.URL(page.url()).search === "");
+  const v = await page.evaluate(() => window.__csp);
+  check("no CSP violations (help phone)", v.length === 0, JSON.stringify(v));
+  await ctx.close();
+}
+
+for (const scheme of ["light", "dark"]) {
+  const ctx = await browser.newContext({ viewport: { width: 1440, height: 900 }, colorScheme: scheme });
+  const page = await ctx.newPage();
+  await page.addInitScript(csp);
+  watch(page, `help-desktop-${scheme}`, errors);
+  await page.goto(URL);
+  await page.waitForSelector("#summary-title");
+  const openCount = () => page.locator(".help:not([hidden])").count();
+  const rp = page.getByRole("button", { name: "About Return before retirement" });
+  if (scheme === "light") {
+    await rp.click();
+    check("click opens help", (await rp.getAttribute("aria-expanded")) === "true" && (await openCount()) === 1);
+    await rp.click();
+    check("click again closes help", (await rp.getAttribute("aria-expanded")) === "false" && (await openCount()) === 0);
+
+    await page.locator("#return-pre").focus();
+    await page.keyboard.press("Shift+Tab");
+    check("help toggle reachable by keyboard", await rp.evaluate((el) => el === document.activeElement));
+    await page.keyboard.press("Enter");
+    check("Enter opens help", (await rp.getAttribute("aria-expanded")) === "true" && (await openCount()) === 1);
+    await page.keyboard.press("Space");
+    check("Space closes help", (await rp.getAttribute("aria-expanded")) === "false" && (await openCount()) === 0);
+    await page.keyboard.press("Space");
+    await page.keyboard.press("Escape");
+    check("Escape closes help and keeps focus on the toggle", (await rp.getAttribute("aria-expanded")) === "false" && (await openCount()) === 0 && (await rp.evaluate((el) => el === document.activeElement)));
+    await page.keyboard.press("Enter");
+    await page.keyboard.press("Tab");
+    check("Tab moves from toggle to its input", await page.locator("#return-pre").evaluate((el) => el === document.activeElement));
+    await page.keyboard.press("Escape");
+    check("Escape from the input closes help, focus stays in input", (await openCount()) === 0 && (await page.locator("#return-pre").evaluate((el) => el === document.activeElement)));
+    await page.getByRole("button", { name: "About Current savings" }).click();
+    await rp.click();
+    check("only one help open at a time (desktop)", (await openCount()) === 1 && (await page.locator("#savings-help").isHidden()));
+  } else {
+    await rp.click();
+  }
+  const overflow = await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth);
+  check(`no horizontal scroll at 1440 with help open (${scheme})`, overflow <= 0, `overflow=${overflow}`);
+  await page.locator("#return-pre-help").evaluate((el) => el.scrollIntoView({ block: "center" }));
+  await page.mouse.move(5, 5);
+  await page.waitForTimeout(300);
+  await page.screenshot({ path: `${SHOTS}/help/desktop-1440x900-${scheme}.png` });
+  const v = await page.evaluate(() => window.__csp);
+  check(`no CSP violations (help desktop ${scheme})`, v.length === 0, JSON.stringify(v));
+  await ctx.close();
+}
+
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, deviceScaleFactor: 2, colorScheme: "dark", hasTouch: true, isMobile: true });
+  const page = await ctx.newPage();
+  await page.addInitScript(csp);
+  watch(page, "help-phone-dark", errors);
+  await page.goto(URL);
+  await page.waitForSelector("#summary-title");
+  await page.getByRole("button", { name: "About Return before retirement" }).tap();
+  await page.locator("#return-pre-help").scrollIntoViewIfNeeded();
+  await page.evaluate(() => window.scrollBy(0, 120));
+  await page.screenshot({ path: `${SHOTS}/help/phone-390x844-dark.png` });
+  const v = await page.evaluate(() => window.__csp);
+  check("no CSP violations (help phone dark)", v.length === 0, JSON.stringify(v));
   await ctx.close();
 }
 
