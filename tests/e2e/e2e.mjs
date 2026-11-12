@@ -203,6 +203,22 @@ async function headline(page) { return (await page.locator("#summary-title").tex
   await ctx.close();
 }
 
+{
+  const ctx = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  const page = await ctx.newPage();
+  const consoleErrors = [];
+  page.on("console", (m) => { if (m.type() === "error") consoleErrors.push(m.text()); });
+  await page.route(URL, async (route) => {
+    const response = await route.fetch();
+    const body = (await response.text()).replace('<div id="app">', '<div id="not-app">');
+    await route.fulfill({ response, body });
+  });
+  await page.goto(URL);
+  await page.waitForTimeout(1500);
+  check("missing #app logs a console error", consoleErrors.some((e) => e.includes("no #app element")), JSON.stringify(consoleErrors));
+  await ctx.close();
+}
+
 await browser.close();
 console.log(checks.join("\n"));
 console.log(`console/page/network errors: ${errors.length}`);
