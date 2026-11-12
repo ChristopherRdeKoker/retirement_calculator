@@ -278,8 +278,9 @@ for (const scheme of ["light", "dark"]) {
     await page.keyboard.press("Enter");
     await page.keyboard.press("Tab");
     check("Tab moves from toggle to its input", await page.locator("#return-pre").evaluate((el) => el === document.activeElement));
+    const openBeforeEscape = await openCount();
     await page.keyboard.press("Escape");
-    check("Escape from the input closes help, focus stays in input", (await openCount()) === 0 && (await page.locator("#return-pre").evaluate((el) => el === document.activeElement)));
+    check("Escape from the input closes help, focus stays in input", openBeforeEscape === 1 && (await openCount()) === 0 && (await page.locator("#return-pre").evaluate((el) => el === document.activeElement)), `open before=${openBeforeEscape}`);
     await page.getByRole("button", { name: "About Current savings" }).click();
     await rp.click();
     check("only one help open at a time (desktop)", (await openCount()) === 1 && (await page.locator("#savings-help").isHidden()));

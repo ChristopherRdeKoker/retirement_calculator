@@ -58,7 +58,7 @@ pub fn field_def(field: Field) -> FieldDef {
             id: "increase",
             label: "Yearly contribution increase",
             hint: "In line with salary increases",
-            help: "How much you raise your monthly contribution each year, for example when you get a salary increase. Keeping pace with inflation keeps your saving steady in real terms.",
+            help: "How much you raise your monthly contribution each year, for example when you get a salary increase. Raising it in line with inflation keeps what you save worth the same in today's money.",
             kind: FieldKind::Percent,
         },
         Field::ReturnPre => FieldDef {
