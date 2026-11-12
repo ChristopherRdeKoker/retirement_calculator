@@ -13,7 +13,7 @@ A small retirement calculator for South Africans. Enter your age, savings and ex
 
 - `src/calc/`: the maths. `inputs.rs` holds the inputs and their validation, `projection.rs` the month-by-month simulation and the sustainable-income search. No web dependencies.
 - `src/format.rs`: rand formatting.
-- `src/form.rs`: the input fields, parsing what people type, and the form state.
+- `src/form.rs`: the input fields, parsing what people type, and the form state. `src/form/deposits.rs` reads the deposit rows.
 - `src/outcome.rs`: a projection plus the sustainable income, and the "lasts until" wording.
 - `src/scenarios.rs`: saved-scenario rules (naming, updating, the limit of three).
 - `src/store.rs`: reading and writing `localStorage`.
@@ -24,6 +24,7 @@ A small retirement calculator for South Africans. Enter your age, savings and ex
 
 - Returns compound monthly (annual rate / 12).
 - Contributions are paid at the end of each month and rise once a year.
+- A lump-sum deposit for year N (year 1 starts at your current age) is added at the start of that year, before its first month of growth and contributions, so it earns the whole year's return. Deposits are in rand as paid, not adjusted for inflation, and must fall before retirement.
 - The desired income is given in today's money, inflated to the retirement date, then raised with inflation once a year.
 - Savings run out in the first month the balance cannot cover the withdrawal. The projection stops at age 100.
 - Tax and fees are not modelled.
