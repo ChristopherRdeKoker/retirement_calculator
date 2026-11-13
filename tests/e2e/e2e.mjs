@@ -37,6 +37,8 @@ async function headline(page) { return (await page.locator("#summary-title").tex
   watch(page, "phone", errors);
   const resp = await page.goto(APP_URL);
   check("CSP header served", (resp.headers()["content-security-policy"] || "").includes("wasm-unsafe-eval"));
+  const metaCsp = (await resp.text()).match(/<meta http-equiv="Content-Security-Policy" content="([^"]*)"/);
+  check("page carries its own CSP meta (default-src 'none', wasm only via script-src)", !!metaCsp && metaCsp[1].includes("default-src 'none'") && metaCsp[1].includes("script-src 'self' 'wasm-unsafe-eval'") && !metaCsp[1].includes("'unsafe-eval'") && !metaCsp[1].includes("'unsafe-inline'"), metaCsp ? metaCsp[1] : "no meta");
   await page.waitForSelector("#summary-title");
   const h0 = await headline(page);
   check("default headline", /^Your savings last (until|beyond) age \d+$/.test(h0), h0);
